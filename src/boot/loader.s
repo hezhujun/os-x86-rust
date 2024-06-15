@@ -1,5 +1,4 @@
-; 
-; load kernel from sector 6-245
+; load kernel
 
 RPL0 equ 00b
 RPL1 equ 01b
@@ -29,7 +28,7 @@ load_kernel:
   mov ax, cs
   mov ds, ax
   mov ah, 02h             ; load sector
-  mov al, 2             ; load 6-245 sectors
+  mov al, 100             ; load 100 sectors
   mov ch, 0               ; in track 0
   mov cl, 6               ; from sector 2
   mov dh, 0
