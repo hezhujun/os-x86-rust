@@ -5,9 +5,9 @@ SRC_PATH := src
 
 QEMU_ARGS := -machine pc \
 			 -smp 1 \
-			 -nographic \
 			 -m $(MEMORY_SIZE) \
-			 -hda $(SYSTEM_IMG)
+			 -hda $(SYSTEM_IMG) \
+			#  -nographic \
 			#  -drive file=$(SYSTEM_IMG),if=none,format=raw,id=x0
 
 system_img:
