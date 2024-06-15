@@ -1,5 +1,19 @@
-mod arch;
+#![no_std]
+#![no_main]
+#![feature(panic_info_message)]
 
-fn main() {
-    println!("Hello, world!");
+mod lang_items;
+use x86::*;
+
+use core::arch::global_asm;
+global_asm!(include_str!("entry.asm"));
+
+// #[no_mangle]
+// pub extern "C" fn _start() -> ! {
+//     loop {}
+// }
+
+#[no_mangle]
+pub fn main() -> ! {
+    loop {}
 }

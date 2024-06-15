@@ -1,1 +1,7 @@
-/target
+target/
+Cargo.lock
+
+mbr.bin
+loader.bin
+kernel.bin
+os.img
