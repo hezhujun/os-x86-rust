@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use bitflags::bitflags;
 
 
@@ -27,5 +29,17 @@ bitflags! {
 impl Eflags {
     pub fn IOPL(&self) -> u32 {
         (self.bits() >> 12) & 0b11
+    }
+}
+
+pub struct  ESP;
+
+impl ESP {
+    pub fn read(&self) -> u32 {
+        let mut value: u32 = 0;
+        unsafe {
+            asm!("mov eax, esp", out("eax") value);
+        }
+        value
     }
 }
