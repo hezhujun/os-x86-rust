@@ -1,11 +1,18 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![no_main]
 #![feature(panic_info_message)]
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
 
 mod lang_items;
-mod driver;
-use driver::print_test;
-use x86::*;
+mod arch;
+mod drivers;
+mod console;
+mod boards;
+mod mm;
+use drivers::chardev::UART;
+use drivers::screen::*;
+use drivers::CharDevice;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -17,6 +24,10 @@ global_asm!(include_str!("entry.asm"));
 
 #[no_mangle]
 pub fn main() -> ! {
-    print_test();
+    UART.init();
+    print!("Hello");
+    println!(" world");
+    print!("1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz");
+    print!("1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz");
     loop {}
 }

@@ -11,4 +11,4 @@ panic = "abort"
 
 [dependencies]
 bitflags = "1.2.1"
-x86 = { path = "../x86" }
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
