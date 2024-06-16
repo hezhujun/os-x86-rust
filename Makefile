@@ -7,12 +7,12 @@ QEMU_ARGS := -machine pc \
 			 -smp 1 \
 			 -m $(MEMORY_SIZE) \
 			 -hda $(SYSTEM_IMG) \
-			#  -nographic \
+			 -nographic
 			#  -drive file=$(SYSTEM_IMG),if=none,format=raw,id=x0
 
 system_img:
 	echo "create $(SYSTEM_IMG)"
-	dd if=/dev/zero of=$(SYSTEM_IMG) bs=1m count=512
+	dd if=/dev/zero of=$(SYSTEM_IMG) bs=1M count=512
 
 mbr.bin: $(SRC_PATH)/boot/mbr.s
 	nasm -f bin $(SRC_PATH)/boot/mbr.s -o mbr.bin
@@ -20,9 +20,14 @@ mbr.bin: $(SRC_PATH)/boot/mbr.s
 loader.bin: $(SRC_PATH)/boot/loader.s
 	nasm $(SRC_PATH)/boot/loader.s -o loader.bin
 
-kernel.bin:
-	cargo build
-	rust-objcopy target/x86-unknown-bare-metal/debug/os --binary-architecture=i386 -O binary $@
+env:
+	cargo install cargo-binutils
+
+kernel: env
+	cargo build --release
+
+kernel.bin: kernel
+	rust-objcopy target/x86-unknown-bare-metal/release/os --strip-all --binary-architecture=i386 -O binary $@
 
 build: system_img mbr.bin loader.bin kernel.bin
 	python3 check_kernel_size.py
