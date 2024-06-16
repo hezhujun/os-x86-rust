@@ -24,6 +24,12 @@ dd 61 dup(0)
 dd 61 dup(0)
 ; 64 segment descriptor
 
+; memory segments count
+ARDS_COUNT: dd 0x0
+ARDS_BASE:
+; [0x200+4, 0x400) record memory segments
+times 0x400-($-$$) db 0
+
 load_kernel:
   mov ax, cs
   mov ds, ax
@@ -39,6 +45,37 @@ load_kernel:
   int 13h
   jb load_kernel
 
+  ; clear screen
+  mov ax, 0600h
+  mov bx, 0700h
+  mov cx, 0
+  mov dx, 184fh
+  int 10h
+
+read_memory_info:
+  ; read memory info
+  mov ax, cs
+  mov es, ax
+  mov ebx, 0
+  mov di, ARDS_BASE
+  mov ecx, 20
+  mov edx, 0x534d4150
+  mov word [ARDS_COUNT], 0
+.read_memoy_info_loop:
+  mov ecx, 20
+  mov eax, 0xE820
+  int 0x15
+  jc read_memory_info
+  add di, cx
+  inc word [ARDS_COUNT]
+  cmp ebx, 0
+  jnz .read_memoy_info_loop
+
+  ; disable bios interrupt
+  ; my screen keeps flickering after open protect mode
+  ; disable bios interrupt can solve this problem
+  cli
+  cld
   ; open A20
   in al, 0x92
   or al, 0000_0010B

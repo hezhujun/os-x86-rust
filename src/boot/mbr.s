@@ -13,7 +13,7 @@ load_loader:
   mov bx, 0x0               ; save data in 
   int 13h
   jb load_loader
-  jmp 0x9000:0x200
+  jmp 0x9000:0x400
 
 times 510-($-$$) db 0
 db 0x55, 0xaa
