@@ -43,3 +43,27 @@ impl ESP {
         value
     }
 }
+
+
+#[repr(C)]
+pub struct AddressRangeDescriptorStructure {
+    pub addr_low: u32,
+    pub addr_high: u32,
+    pub length_low: u32,
+    pub length_high: u32,
+    pub memory_type: u32,
+}
+
+impl AddressRangeDescriptorStructure {
+    pub fn get_addr(&self) -> u64 {
+        ((self.addr_high as u64) << 32) | self.addr_low as u64
+    }
+
+    pub fn get_length(&self) -> u64 {
+        ((self.length_high as u64) << 32) | self.length_low as u64
+    }
+
+    pub fn is_usable(&self) -> bool {
+        self.memory_type == 1
+    }
+}

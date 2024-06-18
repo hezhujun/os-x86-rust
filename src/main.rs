@@ -7,12 +7,14 @@
 mod lang_items;
 mod arch;
 mod drivers;
+#[macro_use]
 mod console;
 mod boards;
 mod mm;
 use drivers::chardev::UART;
 use drivers::screen::*;
 use drivers::CharDevice;
+use mm::*;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -24,10 +26,10 @@ global_asm!(include_str!("entry.asm"));
 
 #[no_mangle]
 pub fn main() -> ! {
+    let esp = arch::x86::ESP.read();
     UART.init();
-    print!("Hello");
-    println!(" world");
-    print!("1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz");
-    print!("1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz");
+    println!("Hello world!");
+    print!("esp: {:#x}", esp);
+    memory_info();
     loop {}
 }
