@@ -30,27 +30,67 @@ ARDS_BASE:
 ; [0x200+4, 0x400) record memory segments
 times 0x400-($-$$) db 0
 
-load_kernel:
-  mov ax, cs
+begin_loader:
+  mov ax, 0x9000
   mov ds, ax
-  mov ah, 02h             ; load sector
-  mov al, 100             ; load 100 sectors
-  mov ch, 0               ; in track 0
-  mov cl, 6               ; from sector 2
-  mov dh, 0
-  mov dl, 0x80
-  mov bx, 0
-  mov es, bx
-  mov bx, 0x500           ; save data in 
-  int 13h
-  jb load_kernel
 
-  ; clear screen
-  mov ax, 0600h
-  mov bx, 0700h
-  mov cx, 0
-  mov dx, 184fh
-  int 10h
+load_kernel:
+  mov cx, 240        ; sectors count
+  mov ebx, 0x500     ; address
+  mov di, 5          ; begin sector
+  mov word [ds:block_count], 128
+  mov word [ds:buffer_addr_offset], 0
+  mov word [ds:buffer_addr_segment], 0x50
+  mov [ds:sector_start], di
+
+.load_kernel_loop:
+  mov ah, 42h
+  mov dl, 0x80
+  mov si, disk_address_packet 
+  int 13h
+  jc load_kernel
+
+  mov ax, [ds:block_count]
+  add di, ax
+  mov [ds:sector_start], di
+  sub cx, ax
+  cmp cx, 0
+  je .load_success
+  cmp cx, 128     ; max number of sector to read one time
+  jb .remaining_sectors_below_128
+  mov word [ds:block_count], 128
+  jmp .handle_address
+.remaining_sectors_below_128:
+  mov [ds:block_count], cx
+.handle_address:
+  mov dx, 512
+  mul dx
+  shl edx, 16
+  and eax, 0xffff
+  add eax, edx
+  add eax, ebx          ; new address
+  ; new address must be 0x***00
+  ; transform to 0x***0:0x0
+  ; after read data, end address is 0x***0:0xffff
+  shr eax, 4
+  mov word [ds:buffer_addr_offset], 0
+  mov [ds:buffer_addr_segment], ax
+  jmp .load_kernel_loop
+
+.load_success
+  jmp read_memory_info
+
+disk_address_packet:
+  db 0x10
+  db 0x0
+block_count:
+  dw 128
+buffer_addr_offset:
+  dw 0x500
+buffer_addr_segment:
+  dw 0x0
+sector_start:
+  dq 0x05
 
 read_memory_info:
   ; read memory info
@@ -60,14 +100,14 @@ read_memory_info:
   mov di, ARDS_BASE
   mov ecx, 20
   mov edx, 0x534d4150
-  mov word [ARDS_COUNT], 0
+  mov word [ds:ARDS_COUNT], 0
 .read_memoy_info_loop:
   mov ecx, 20
   mov eax, 0xE820
   int 0x15
   jc read_memory_info
   add di, cx
-  inc word [ARDS_COUNT]
+  inc word [ds:ARDS_COUNT]
   cmp ebx, 0
   jnz .read_memoy_info_loop
 

@@ -2,6 +2,9 @@
 
 section mbr vstart=0x7c00
 load_loader:
+  mov ah, 00h
+  mov dx, 0x80
+  int 13h
   mov ah, 02h             ; load sector
   mov al, 4               ; load 2-5 sectors
   mov ch, 0               ; in track 0
@@ -12,7 +15,7 @@ load_loader:
   mov es, bx
   mov bx, 0x0               ; save data in 
   int 13h
-  jb load_loader
+  jc load_loader
   jmp 0x9000:0x400
 
 times 510-($-$$) db 0
