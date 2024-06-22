@@ -3,6 +3,7 @@
 #![feature(panic_info_message)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
+#![feature(alloc_error_handler)]
 
 
 #[macro_use]
@@ -12,6 +13,8 @@ extern crate lazy_static;
 #[macro_use]
 mod console;
 
+extern crate alloc;
+mod config;
 mod logger;
 mod lang_items;
 mod arch;

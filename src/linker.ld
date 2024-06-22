@@ -31,8 +31,11 @@ SECTIONS
 
     . = ALIGN(4K);
     edata = .;
-    sbss = .;
+    sbss_with_stack = .;
     .bss : {
+        *(.bss.stack)
+        ebss_with_stack = .;
+        sbss = .;
         *(.bss .bss.*)
         *(.sbss .sbss.*)
     }
@@ -44,7 +47,4 @@ SECTIONS
     /DISCARD/ : {
         *(.eh_frame)
     }
-
-    . = ALIGN(4K);
-    ekernel = .;
 }
