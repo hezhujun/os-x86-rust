@@ -10,7 +10,14 @@ bitflags! {
 }
 
 
+#[derive(Clone, Copy)]
 pub struct SegmentDescriptor([u32;2]);
+
+impl SegmentDescriptor {
+    pub fn empty() -> Self {
+        Self([0;2])
+    }
+}
 
 impl SegmentDescriptor {
     /// create segment descriptor

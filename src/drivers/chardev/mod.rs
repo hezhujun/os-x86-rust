@@ -1,7 +1,5 @@
 mod ns16550a;
 
-use lazy_static::{lazy_static, LazyStatic};
-
 pub trait CharDevice {
     fn init(&self);
     fn read(&self) -> u8;
@@ -12,5 +10,9 @@ pub trait CharDevice {
 pub type CharDeviceImpl = ns16550a::NS16550a;
 
 lazy_static! {
-    pub static ref UART: CharDeviceImpl = CharDeviceImpl::new();
+    pub static ref UART: CharDeviceImpl = {
+        let driver = CharDeviceImpl::new();
+        driver.init();
+        driver
+    };
 }

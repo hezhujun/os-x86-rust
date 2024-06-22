@@ -10,7 +10,6 @@ SECTIONS
     stext = .;
     .text : {
         *(.text.entry)
-        . = ALIGN(4K);
         *(.text .text.*)
     }
 

@@ -6,9 +6,7 @@ SRC_PATH := src
 QEMU_ARGS := -machine pc \
 			 -smp 1 \
 			 -m $(MEMORY_SIZE) \
-			 -drive format=raw,file=$(SYSTEM_IMG) \
-			 -nographic
-			#  -drive file=$(SYSTEM_IMG),if=none,format=raw,id=x0
+			 -drive format=raw,file=$(SYSTEM_IMG)
 
 system_img:
 	echo "create $(SYSTEM_IMG)"
@@ -36,16 +34,19 @@ build: system_img mbr.bin loader.bin kernel.bin
 	dd if=kernel.bin of=$(SYSTEM_IMG) bs=512 count=100 seek=5 conv=notrunc
 
 run: build
+	qemu-system-i386 $(QEMU_ARGS) -nographic
+
+run_with_graphic: build
 	qemu-system-i386 $(QEMU_ARGS)
 
 debug: system_img
 	@tmux new-session -d \
-		"qemu-system-i386 $(QEMU_ARGS) -s -S" && \
+		"qemu-system-i386 $(QEMU_ARGS) -nographic -s -S" && \
 		tmux split-window -h "lldb --arch x86 -S lldb_debug.txt" && \
 		tmux -2 attach-session -d
 
 gdbserver: build
-	qemu-system-i386 $(QEMU_ARGS) -s -S
+	qemu-system-i386 $(QEMU_ARGS) -nographic -s -S
 
 gdbclient:
 	lldb --arch i386 -S lldb_debug.txt
@@ -55,3 +56,4 @@ clean:
 	rm loader.bin
 	rm kernel.bin
 	rm os.img
+	cargo clean

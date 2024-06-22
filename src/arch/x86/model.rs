@@ -46,12 +46,19 @@ impl ESP {
 
 
 #[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct AddressRangeDescriptorStructure {
     pub addr_low: u32,
     pub addr_high: u32,
     pub length_low: u32,
     pub length_high: u32,
     pub memory_type: u32,
+}
+
+impl AddressRangeDescriptorStructure {
+    pub fn empty() -> Self {
+        Self { addr_low: 0, addr_high: 0, length_low: 0, length_high: 0, memory_type: 0 }
+    }
 }
 
 impl AddressRangeDescriptorStructure {
