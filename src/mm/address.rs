@@ -35,7 +35,9 @@ impl VirtAddr {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct PhysPageNum(pub usize);
+#[derive(Clone, Copy)]
 pub struct VirtPageNum(pub usize);
 
 impl From<PhysAddr> for PhysPageNum {

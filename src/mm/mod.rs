@@ -1,29 +1,25 @@
 pub mod address;
 pub mod frame_allocator;
 pub mod heap_allocator;
+pub mod page_table;
+mod init;
 
 use core::assert;
 use crate::arch::x86::AddressRangeDescriptorStructure;
-use crate::arch::x86::SegmentDescriptor;
 
 pub use address::*;
 pub use frame_allocator::*;
-pub use heap_allocator::*;
 
 const ARDS_MAX_COUNT: usize = 25;
+static mut FRAME_BEGIN_ADDRESS: usize = 0;
+
+pub fn set_frame_begin_address(address: usize) {
+    unsafe {
+        FRAME_BEGIN_ADDRESS = address;
+    }
+}
 
 lazy_static! {
-    static ref GDT: [SegmentDescriptor; 64] = {
-        let old_gdt = unsafe {
-            core::slice::from_raw_parts((0x90000) as *const SegmentDescriptor, 64)
-        };
-        let mut gdt = [SegmentDescriptor::empty(); 64];
-        for idx in 0..64 {
-            gdt[idx] = old_gdt[idx];
-        }
-        gdt
-    };
-
     static ref ARDS_COUNT: usize = {
         let ards_len = unsafe {
             (0x90200 as *const u32).as_ref().unwrap()
@@ -81,11 +77,14 @@ impl<'a> MemoryInfo<'a> {
             if ards_address_begin <= kernel_address_end && kernel_address_end < ards_address_end {
                 assert!(false, "no free memory");
             }
-            let ards_address_begin = PhysAddr(ards_address_begin.try_into().unwrap());
-            let ards_address_end = PhysAddr(ards_address_end.try_into().unwrap());
+            assert!(ards_address_begin + unsafe { FRAME_BEGIN_ADDRESS as u64 } < ards_address_end);
+            let ards_address_begin: usize = (ards_address_begin + unsafe { FRAME_BEGIN_ADDRESS as u64 }).try_into().unwrap();
+            let ards_address_end: usize = ards_address_end.try_into().unwrap();
+            let ards_address_begin = PhysAddr(ards_address_begin);
+            let ards_address_end = PhysAddr(ards_address_end);
             (ards_address_begin.phys_page_num_ceil(), ards_address_end.phys_page_num_floor())
         } else {
-            (PhysAddr(0x100000).phys_page_num_ceil(), PhysAddr(0x100000).phys_page_num_floor())
+            panic!("no free memory");
         }
     }
 }
@@ -107,7 +106,7 @@ lazy_static! {
 
 pub fn init() {
     memory_info();
-    heap_allocator::init();
+    init::memory_init();
 }
 
 fn memory_info() {

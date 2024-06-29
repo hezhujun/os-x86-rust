@@ -30,6 +30,9 @@ ARDS_BASE:
 ; [0x200+4, 0x400) record memory segments
 times 0x400-($-$$) db 0
 
+gdt_ptr dw 511
+        dd GDT_BASE
+        dw 0
 begin_loader:
   mov ax, 0x9000
   mov ds, ax
@@ -150,6 +153,3 @@ p_mode_start:
   mov edi, eax
   mov ebp, eax
   jmp 0x500
-
-gdt_ptr dw 511
-        dd GDT_BASE

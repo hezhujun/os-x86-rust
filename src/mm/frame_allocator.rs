@@ -145,3 +145,9 @@ impl Drop for FrameTracker {
         }
     }
 }
+
+pub fn alloc_frame(page_size: usize) -> Option<FrameTracker> {
+    FRAME_ALLOCATOR.lock().alloc_contiguous_pages(page_size).map(|ppn| {
+        FrameTracker::new(ppn, page_size)
+    })
+}

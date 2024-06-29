@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use bitflags::bitflags;
 
 bitflags! {
@@ -119,6 +121,31 @@ impl SegmentDescriptor {
 
     pub fn granularity(&self) -> bool {
         ((self.0[1] >> 23) & 1) == 1
+    }
+}
+
+
+pub struct GDTRegister(u64);
+
+impl GDTRegister {
+    pub fn new(limit: u16, gdt_address: u32) -> Self {
+        let mut v = limit as u64;
+        v |= (gdt_address as u64) << 16;
+        Self(v)
+    }
+
+    pub fn set(&mut self, limit: u16, gdt_address: u32) {
+        let mut v = limit as u64;
+        v |= (gdt_address as u64) << 16;
+        self.0 = v;
+    }
+
+    pub fn limit(&self) -> u16 {
+        (self.0 & 0xffff) as u16
+    }
+
+    pub fn gdt_address(&self) -> u32 {
+        ((self.0 >> 16) & 0xffffffff) as u32
     }
 }
 

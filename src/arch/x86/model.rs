@@ -24,11 +24,45 @@ bitflags! {
         const VIP = 1 << 20;
         const ID = 1 << 21;
     }
+
+    pub struct Cr0: u32 {
+        const PE = 1;
+        const MP = 1 << 1;
+        const EM = 1 << 2;
+        const TS = 1 << 3;
+        const ET = 1 << 4;
+        const NE = 1 << 5;
+        const WP = 1 << 16;
+        const AM = 1 << 18;
+        const NW = 1 << 29;
+        const CD = 1 << 30;
+        const PG = 1 << 31;
+    }
 }
 
 impl Eflags {
     pub fn IOPL(&self) -> u32 {
         (self.bits() >> 12) & 0b11
+    }
+}
+
+impl Cr0 {
+    pub fn read() -> Self {
+        let mut value: u32 = 0;
+        unsafe {
+            asm!("mov eax, cr0", out("eax") value);
+        }
+        Cr0::from_bits_truncate(value)
+    }
+
+    pub fn write(&self) {
+        let value = self.bits();
+        unsafe {
+            asm!(
+                "mov cr0, eax",
+                in("eax") value
+            );
+        }
     }
 }
 
@@ -41,6 +75,15 @@ impl ESP {
             asm!("mov eax, esp", out("eax") value);
         }
         value
+    }
+
+    pub fn write(&self, value: u32) {
+        unsafe {
+            asm!(
+                "mov esp, eax",
+                in("eax") value
+            );
+        }
     }
 }
 

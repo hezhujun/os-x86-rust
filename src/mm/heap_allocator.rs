@@ -6,13 +6,11 @@ static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 const HEAP_SPACE_LEN: usize = KERNEL_HEAP_PAGE_SIZE * MEMORY_PAGE_SIZE;
 
-static mut HEAP_SPACE: [u8; HEAP_SPACE_LEN] = [0; HEAP_SPACE_LEN];
-
-pub fn init() {
+pub fn init(heap_base_address: usize) {
     unsafe {
         HEAP_ALLOCATOR
             .lock()
-            .init(HEAP_SPACE.as_ptr() as usize, HEAP_SPACE_LEN);
+            .init(heap_base_address, HEAP_SPACE_LEN);
     }
 }
 
