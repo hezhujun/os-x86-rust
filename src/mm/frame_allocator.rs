@@ -104,8 +104,11 @@ impl FrameAllocator for SimpleAllocator {
         self.page_map.set(ppn.0, false);
         let mut idx = ppn.0;
         if idx == self.current - 1 {
-            while idx >=0 && !self.page_map.get(idx) {
+            while !self.page_map.get(idx) {
                 self.current = idx;
+                if idx == 0 {
+                    break;
+                }
                 idx -= 1;
             }
         }

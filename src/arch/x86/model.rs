@@ -44,6 +44,14 @@ impl Eflags {
     pub fn IOPL(&self) -> u32 {
         (self.bits() >> 12) & 0b11
     }
+
+    pub fn read() -> Self {
+        let mut value: u32 = 0;
+        unsafe {
+            asm!("pushfd", "pop eax", out("eax") value);
+        }
+        Eflags::from_bits_truncate(value)
+    }
 }
 
 impl Cr0 {
@@ -115,5 +123,23 @@ impl AddressRangeDescriptorStructure {
 
     pub fn is_usable(&self) -> bool {
         self.memory_type == 1
+    }
+}
+
+pub struct DescriptorTablePointer(u64);
+
+impl DescriptorTablePointer {
+    pub fn new(address: u32, limit: u16) -> Self {
+        let mut v = limit as u64;
+        v |= (address as u64) << 16;
+        Self(v)
+    }
+
+    pub fn get_limit(&self) -> u16 {
+        (self.0 & 0xffff).try_into().unwrap()
+    }
+
+    pub fn get_address(&self) -> u32 {
+        ((self.0 >> 16) & 0xffff).try_into().unwrap()
     }
 }

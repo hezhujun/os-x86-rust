@@ -20,6 +20,7 @@ CODE_DESC: dd 0x0000FFFF
 
 DATA_DESC: dd 0x0000FFFF
            dd 0x00CF9200
+
 dd 61 dup(0)
 dd 61 dup(0)
 ; 64 segment descriptor
@@ -35,6 +36,65 @@ times 0x400-($-$$) db 0
 begin_loader:
   mov ax, 0x9000
   mov ds, ax
+
+load_kernel:
+  mov cx, 240        ; sectors count
+  mov ebx, 0x500     ; address
+  mov di, 5          ; begin sector
+  mov word [ds:block_count], 128
+  mov word [ds:buffer_addr_offset], 0
+  mov word [ds:buffer_addr_segment], 0x50
+  mov [ds:sector_start], di
+
+.load_kernel_loop:
+  mov ah, 42h
+  mov dl, 0x80
+  mov si, disk_address_packet 
+  int 13h
+  jc load_kernel
+
+  mov ax, [ds:block_count]
+  add di, ax
+  mov [ds:sector_start], di
+  sub cx, ax
+  cmp cx, 0
+  je .load_success
+  cmp cx, 128     ; max number of sector to read one time
+  jb .remaining_sectors_below_128
+  mov word [ds:block_count], 128
+  jmp .handle_address
+.remaining_sectors_below_128:
+  mov [ds:block_count], cx
+.handle_address:
+  mov dx, 512
+  mul dx
+  shl edx, 16
+  and eax, 0xffff
+  add eax, edx
+  add eax, ebx          ; new address
+  ; new address must be 0x***00
+  ; transform to 0x***0:0x0
+  ; after read data, end address is 0x***0:0xffff
+  shr eax, 4
+  mov word [ds:buffer_addr_offset], 0
+  mov [ds:buffer_addr_segment], ax
+  jmp .load_kernel_loop
+
+.load_success:
+  jmp read_memory_info
+
+disk_address_packet:
+  db 0x10
+  db 0x0
+block_count:
+  dw 128
+buffer_addr_offset:
+  dw 0x500
+buffer_addr_segment:
+  dw 0x0
+sector_start:
+  dq 0x05
+
 read_memory_info:
   ; read memory info
   mov ax, cs
@@ -54,6 +114,11 @@ read_memory_info:
   cmp ebx, 0
   jnz .read_memoy_info_loop
 
+  ; disable bios interrupt
+  ; my screen keeps flickering after open protect mode
+  ; disable bios interrupt can solve this problem
+  cli
+  cld
   ; open A20
   in al, 0x92
   or al, 0000_0010B
@@ -66,6 +131,7 @@ read_memory_info:
   mov eax, cr0
   or eax, 0x1
   mov cr0, eax
+
   jmp dword CODE_SELECTOR:p_mode_start
 
 [bits 32]
@@ -76,52 +142,6 @@ p_mode_start:
   mov fs, ax
   mov gs, ax
   mov ss, ax
-
-load_kernel:
-  mov al, 240  ; number of sectors to read
-  mov dx, 0x1f2
-  out dx, al
-
-  mov eax, 5   ; start sector  
-  mov dx, 0x1f3
-  out dx, al
-  mov dx, 0x1f4
-  shr eax, 8
-  out dx, al
-  mov dx, 0x1f5
-  shr eax, 8
-  out dx, al
-  mov dx, 0x1f6
-  shr eax, 8
-  or al, 0xe0
-  out dx, al
-
-  mov dx, 0x1f7
-  mov al, 0x20
-  out dx, al
-
-.wait:
-  nop
-  in al, dx
-  and al, 0x88
-  cmp al, 0x08
-  jnz .wait
-
-  mov eax, 240
-  mov cx, 512
-  mul cx
-  shl edx, 16
-  mov dx, ax
-  mov ecx, edx
-  shr ecx, 1
-  
-  mov ebx, 0x500
-  mov dx, 0x1f0
-.go_on_read:
-  in ax, dx
-  mov [ebx], ax
-  add ebx, 2
-  loop .go_on_read
 
   mov eax, 0x90000
   mov esp, eax
@@ -137,3 +157,4 @@ load_kernel:
 gdt_ptr_address equ $ - BASE_ADDRESS
 gdt_ptr dw 511
         dd GDT_BASE
+        dw 0

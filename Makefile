@@ -1,5 +1,8 @@
 MEMORY_SIZE := 16M
-SYSTEM_IMG := os.img
+SYSTEM_IMG := hd60M.img
+BOCHS_HOME := ~/package/bochs
+BOCHS_CONFIG_FILE := bochsrc
+BOCHS_DISK_FILE := 
 
 SRC_PATH := src
 
@@ -8,8 +11,7 @@ QEMU_ARGS := -machine pc \
 			 -m $(MEMORY_SIZE) \
 			 -drive format=raw,file=$(SYSTEM_IMG)
 
-system_img:
-	echo "create $(SYSTEM_IMG)"
+$(SYSTEM_IMG):
 	dd if=/dev/zero of=$(SYSTEM_IMG) bs=1M count=512
 
 mbr.bin: $(SRC_PATH)/boot/mbr.s
@@ -27,14 +29,14 @@ kernel: env
 kernel.bin: kernel
 	rust-objcopy target/x86-unknown-bare-metal/release/os --strip-all --binary-architecture=i386 -O binary $@
 
-build: system_img mbr.bin loader.bin kernel.bin
+build: $(SYSTEM_IMG) mbr.bin loader.bin kernel.bin
 	python3 check_kernel_size.py
 	dd if=mbr.bin of=$(SYSTEM_IMG) bs=512 count=1 conv=notrunc
 	dd if=loader.bin of=$(SYSTEM_IMG) bs=512 count=4 seek=1 conv=notrunc
 	dd if=kernel.bin of=$(SYSTEM_IMG) bs=512 count=100 seek=5 conv=notrunc
 
 run: build
-	qemu-system-i386 $(QEMU_ARGS) -nographic
+	qemu-system-i386 $(QEMU_ARGS)
 
 run_with_graphic: build
 	qemu-system-i386 $(QEMU_ARGS)
@@ -55,5 +57,11 @@ clean:
 	rm mbr.bin
 	rm loader.bin
 	rm kernel.bin
-	rm os.img
+	rm $(SYSTEM_IMG)
 	cargo clean
+
+bochs_disk_file:
+	$(BOCHS_HOME)/bin/bximage -func=create -hd=60M -imgmode=flat -q $(SYSTEM_IMG)
+
+bochs_run: build
+	$(BOCHS_HOME)/bin/bochs -f $(BOCHS_CONFIG_FILE) -q

@@ -140,7 +140,7 @@ impl GDTRegister {
         self.0 = v;
     }
 
-    pub fn limit(&self) -> u16 {
+    pub fn get_limit(&self) -> u16 {
         (self.0 & 0xffff) as u16
     }
 

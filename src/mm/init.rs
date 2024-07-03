@@ -8,13 +8,10 @@ use super::set_frame_begin_address;
 use crate::mm::heap_allocator;
 
 pub fn memory_init() {
-    let gdtr = 0x90408 as *mut GDTRegister;
-    unsafe {
-        (*gdtr).set(511, 0xc0090000);
-    }
+    let gdtr = DescriptorTablePointer::new(0xc0090000, 511);
     let (kernel_heap_base_pa, end_page_pa) = init_kernel_page_table();
     unsafe {
-        asm!("lgdt [0x90408]");
+        asm!("lgdt [{}]", in(reg) &gdtr);
     }
     set_frame_begin_address(end_page_pa.0);
     let kernel_heap_base_address = kernel_heap_base_pa.0 + HIGH_ADDRESS_BASE;

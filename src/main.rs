@@ -4,7 +4,12 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 #![feature(alloc_error_handler)]
-
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_comparisons)]
+#![allow(non_snake_case)]
+#![allow(unused_imports)]
+#![allow(unused_assignments)]
 
 #[macro_use]
 extern crate log;
@@ -21,6 +26,8 @@ mod arch;
 mod drivers;
 mod boards;
 mod mm;
+mod intr;
+mod timer;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -36,9 +43,12 @@ pub fn main() -> ! {
     let _ = logger::init();
     info!("Hello world!");
     mm::init();
+    intr::init();
+    loop {}
+    timer::init();
+    info!("Hello world!");
     loop {}
 }
-
 
 fn clear_bss() {
     extern "C" {

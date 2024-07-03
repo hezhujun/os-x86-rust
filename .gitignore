@@ -5,3 +5,5 @@ mbr.bin
 loader.bin
 kernel.bin
 os.img
+hd60M.img
+bochs.log

@@ -107,6 +107,7 @@ lazy_static! {
 pub fn init() {
     memory_info();
     init::memory_init();
+    info!("mm::init done");
 }
 
 fn memory_info() {
