@@ -4,7 +4,7 @@
 .macro handle_intr
   call intr_handler
   add esp, 8
-  iret
+  iretd
 .endm
 
 .macro intr_without_error_code n

@@ -5,8 +5,9 @@ use core::arch::{asm, global_asm};
 use alloc::sync::Arc;
 use define::*;
 use spin::Mutex;
+use IrqType::TIME;
 use crate::arch::x86::{outb, DescriptorTablePointer, GateDescriptor};
-use crate::arch::x86::pic;
+use crate::arch::x86::pic::{self, OCW2};
 use crate::config::HIGH_ADDRESS_BASE;
 
 global_asm!(include_str!("trap.S"));
@@ -14,18 +15,36 @@ global_asm!(include_str!("trap.S"));
 const IDT_LEN: usize = 0x31;
 const IDT_MAX_LEN: usize = 256;
 
-// #[no_mangle]
-// pub extern "C" fn intr_handler(intr: u32, error_code: u32) {
-//     debug!("intr #{} error code {}", intr, error_code);
-// }
-
 #[no_mangle]
-pub extern "C" fn intr_handler() {
-    debug!("intr_handler");
-    loop {
-        
+pub extern "C" fn intr_handler(intr: u32, error_code: u32, eip: u32, cs: u32) {
+    debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs);
+    assert!((intr >> 8) == 0);
+    let intr: u8 = (intr & 0xff).try_into().unwrap();
+    match intr {
+        IrqType::TIME | IrqType::KEYBOARD | IrqType::IRQ_0X22 | IrqType::IRQ_0X23 | IrqType::IRQ_0X24 | IrqType::IRQ_0X25 | IrqType::IRQ_0X26 | IrqType::IRQ_0X27 => {
+            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+        },
+        IrqType::IRQ_0X28 | IrqType::IRQ_0X29 | IrqType::IRQ_0X2A | IrqType::IRQ_0X2B | IrqType::IRQ_0X2C | IrqType::IRQ_0X2D | IrqType::IRQ_0X2E | IrqType::IRQ_0X2F => {
+            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+            outb(PIC_S_CTRL, pic::OCW2::new(false, false, true, 0).0);
+            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+        },
+        _ => {
+            loop {
+                
+            }
+        }
     }
 }
+
+// #[no_mangle]
+// pub extern "C" fn intr_handler() {
+//     debug!("intr_handler");
+//     loop {
+        
+//     }
+// }
 
 /// 主片的控制端口
 const PIC_M_CTRL: u16 = 0x20;

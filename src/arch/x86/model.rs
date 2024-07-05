@@ -74,7 +74,7 @@ impl Cr0 {
     }
 }
 
-pub struct  ESP;
+pub struct ESP;
 
 impl ESP {
     pub fn read(&self) -> u32 {

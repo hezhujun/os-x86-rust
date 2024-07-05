@@ -1,3 +1,5 @@
+use core::fmt::Display;
+
 use crate::{arch::x86::{GateDescriptor, INTR_GATE_ATTR}, config::{CODE_SELECTOR, HIGH_ADDRESS_BASE}, intr::{IDT_LEN, IDT_MAX_LEN}};
 
 extern "C" {
@@ -107,6 +109,75 @@ lazy_static! {
             (intr_entry_0x30 as usize).try_into().unwrap(),
         ]
     };
+}
+
+pub mod IrqType {
+    pub const DIVIDE_ERROR: u8 = 0;
+    pub const DEBUG: u8 = 1;
+    pub const NMI_INTR: u8 = 2;
+    pub const BREAK_POINT: u8 = 3;
+    pub const OVERFLOW: u8 = 4;
+    pub const BOUND_RANGE_EXCEEDED: u8 = 5;
+    pub const INVALID_OPCODE: u8 = 6;
+    pub const DEVICE_NOT_AVAILABLE: u8 = 7;
+    pub const DOUBLE_FAULT: u8 = 8;
+    pub const COPROCESSOR_SEGMENT_OVERRUN: u8 = 9;
+    pub const INVALID_TSS: u8 = 10;
+    pub const SEGMENT_NOT_PRESENT: u8 = 11;
+    pub const STACK_SEGMENT_FAULT: u8 = 12;
+    pub const GENERAL_PROTECTION: u8 = 13;
+    pub const PAGE_FAULT: u8 = 14;
+    pub const FLOATING_POINT_ERROR: u8 = 16;
+    pub const ALIGNMENT_CHECK: u8 = 17;
+    pub const MACHINE_CHECK: u8 = 18;
+    pub const SIMD_FLOATING_POINT_EXCEPTION: u8 = 19;
+
+    pub const TIME: u8 = 0x20;
+    pub const KEYBOARD: u8 = 0x21;
+    pub const IRQ_0X22: u8 = 0x22;
+    pub const IRQ_0X23: u8 = 0x23;
+    pub const IRQ_0X24: u8 = 0x24;
+    pub const IRQ_0X25: u8 = 0x25;
+    pub const IRQ_0X26: u8 = 0x26;
+    pub const IRQ_0X27: u8 = 0x27;
+    pub const IRQ_0X28: u8 = 0x28;
+    pub const IRQ_0X29: u8 = 0x29;
+    pub const IRQ_0X2A: u8 = 0x2a;
+    pub const IRQ_0X2B: u8 = 0x2b;
+    pub const IRQ_0X2C: u8 = 0x2c;
+    pub const IRQ_0X2D: u8 = 0x2d;
+    pub const IRQ_0X2E: u8 = 0x2e;
+    pub const IRQ_0X2F: u8 = 0x2f;
+}
+
+pub struct IrqErrorCode(pub u32);
+
+impl IrqErrorCode {
+    pub fn is_ext(&self) -> bool {
+        self.0 & 1 != 0
+    }
+
+    pub fn is_idt(&self) -> bool {
+        self.0 & 0b10 != 0
+    }
+
+    pub fn is_ti(&self) -> bool {
+        self.0 & 0b100 != 0
+    }
+
+    pub fn get_selector(&self) -> u16 {
+        ((self.0 >> 3) & 0xffff).try_into().unwrap()
+    }
+}
+
+impl Display for IrqErrorCode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_idt() {
+            write!(f, "IrqErrorCode[selector: {}, TI: {}, IDT: {}, EXT: {}]", self.get_selector(), self.is_ti(), self.is_idt(), self.is_ext())
+        } else {
+            write!(f, "IrqErrorCode[selector: {}, IDT: {}, EXT: {}]", self.get_selector(), self.is_idt(), self.is_ext())
+        }
+    }
 }
 
 fn init_ldt_entry(gate: &mut GateDescriptor, idx: usize) {

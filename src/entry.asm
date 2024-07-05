@@ -1,7 +1,6 @@
   .section .text.entry
   .global _start
 _start:
-  mov sp, kernel_stack_top
   call main
 .dead_loop:
   jmp .dead_loop
