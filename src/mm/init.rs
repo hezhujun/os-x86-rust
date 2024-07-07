@@ -3,7 +3,7 @@ use core::arch::asm;
 
 use crate::config::*;
 use crate::arch::x86::*;
-use crate::mm::address::*;
+use crate::mm::{address::*, KERNEL_PDT_ADDRESS};
 use super::set_frame_begin_address;
 use crate::mm::heap_allocator;
 
@@ -23,7 +23,7 @@ pub fn memory_init() {
 
 /// return (kernel_heap_base_phys_address, end_page_phys_address)
 fn init_kernel_page_table() -> (PhysAddr, PhysAddr) {
-    let root_directory_page_address = PhysAddr(0x100000);
+    let root_directory_page_address = PhysAddr(KERNEL_PDT_ADDRESS);
     let root = root_directory_page_address.phys_page_num_floor();
     root.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
     let root_pde_array = root.get_pde_arrray();

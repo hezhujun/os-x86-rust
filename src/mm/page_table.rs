@@ -2,6 +2,7 @@ use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 use super::{alloc_frame, FrameTracker, PhysAddr, PhysPageNum, VirtPageNum};
+use crate::mm::KERNEL_PDT_ADDRESS;
 use crate::{arch::x86::{PageDirectoryEntry, PageTableEntry, PdeFlags, PteFlags}, config::PTE_SIZE_IN_PAGE};
 
 pub struct PageTable {
@@ -14,32 +15,24 @@ impl PageTable {
         Self { root, frames }
     }
 
-    pub fn kernel_page_table() -> Self {
-        // root + 1M / 4KB = 1 + 0x100000 / 0x1000 = 1 + 0x100 = 1 + 256
-        let root_frame = alloc_frame(1).unwrap();
-        let root = root_frame.base_ppn;
-        let pte_frames = alloc_frame(256).unwrap();
-        let pde_array = root.get_pde_arrray();
-        for idx in 0..0x100 {
-            let entry = PageDirectoryEntry::new(pte_frames.base_ppn.base_address().0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW | PdeFlags::US);
-            pde_array[idx] = entry
-        }
-        let frames = vec![root_frame, pte_frames];
-        Self { root, frames }
+    pub fn from(root: PhysPageNum) -> Self {
+        Self { root, frames: Vec::new() }
     }
 
-    pub fn map_page(&mut self, virt_page_num: VirtPageNum, phys_page_num: PhysPageNum, flag: PteFlags) {
-        let index2 = virt_page_num.0 & 0x3ff;
-        let index1 = (virt_page_num.0 >> 10)& 0x3ff;
-        let pde_array = self.root.get_pde_arrray();
-        if !pde_array[index1].flag().contains(PdeFlags::P) {
-            self.create_entry(&mut pde_array[index1]);
+    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
+        let pte = self.find_pte_create(vpn);
+        assert_eq!(pte.flag().contains(PteFlags::P), false);
+        let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), flag);
+        *pte = new_entry;
+    }
+
+    pub fn unmap(&mut self, vpn: VirtPageNum) {
+        if let Some(pte) = self.find_pte(vpn) {
+            assert!(pte.flag().contains(PteFlags::P));
+            *pte = PageTableEntry::empty();
+        } else {
+            assert!(false)
         }
-        let second_ppn: PhysPageNum = pde_array[index1].into();
-        let pte_array = second_ppn.get_pte_arrray();
-        assert_eq!(pte_array[index2].flag().contains(PteFlags::P), false);
-        let new_entry = PageTableEntry::new(phys_page_num.base_address().0.try_into().unwrap(), flag);
-        pte_array[index2] = new_entry;
     }
 
     fn create_entry(&mut self, entry: &mut PageDirectoryEntry) {
@@ -47,6 +40,30 @@ impl PageTable {
         let new_entry = PageDirectoryEntry::new(frame.base_ppn.base_address().0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW);
         self.frames.push(frame);
         *entry = new_entry;
+    }
+
+    fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+        let index2 = vpn.0 & 0x3ff;
+        let index1 = (vpn.0 >> 10)& 0x3ff;
+        let pde_array = self.root.get_pde_arrray();
+        if !pde_array[index1].flag().contains(PdeFlags::P) {
+            return None;
+        }
+        let second_ppn: PhysPageNum = pde_array[index1].into();
+        let pte_array = second_ppn.get_pte_arrray();
+        Some(&mut pte_array[index2])
+    }
+
+    fn find_pte_create(&mut self, vpn: VirtPageNum) -> &mut PageTableEntry {
+        let index2 = vpn.0 & 0x3ff;
+        let index1 = (vpn.0 >> 10)& 0x3ff;
+        let pde_array = self.root.get_pde_arrray();
+        if !pde_array[index1].flag().contains(PdeFlags::P) {
+            self.create_entry(&mut pde_array[index1]);
+        }
+        let second_ppn: PhysPageNum = pde_array[index1].into();
+        let pte_array = second_ppn.get_pte_arrray();
+        &mut pte_array[index2]
     }
 }
 
@@ -80,6 +97,6 @@ impl From<PageTableEntry> for PhysPageNum {
 
 lazy_static! {
     pub static ref KERNEL_PAGE_TABLE: Arc<Mutex<PageTable>> = {
-        Arc::new(Mutex::new(PageTable::kernel_page_table()))
+        Arc::new(Mutex::new(PageTable::from(PhysAddr(KERNEL_PDT_ADDRESS).into())))
     };
 }

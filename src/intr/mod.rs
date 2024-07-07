@@ -1,6 +1,8 @@
 
 mod define;
+mod context;
 
+pub use context::*;
 use core::arch::{asm, global_asm};
 use alloc::sync::Arc;
 use define::*;
@@ -9,42 +11,12 @@ use IrqType::TIME;
 use crate::arch::x86::{outb, DescriptorTablePointer, GateDescriptor};
 use crate::arch::x86::pic::{self, OCW2};
 use crate::config::HIGH_ADDRESS_BASE;
+use crate::schedule::suspend_current_and_run_next;
 
 global_asm!(include_str!("trap.S"));
 
 const IDT_LEN: usize = 0x31;
 const IDT_MAX_LEN: usize = 256;
-
-#[no_mangle]
-pub extern "C" fn intr_handler(intr: u32, error_code: u32, eip: u32, cs: u32) {
-    debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs);
-    assert!((intr >> 8) == 0);
-    let intr: u8 = (intr & 0xff).try_into().unwrap();
-    match intr {
-        IrqType::TIME | IrqType::KEYBOARD | IrqType::IRQ_0X22 | IrqType::IRQ_0X23 | IrqType::IRQ_0X24 | IrqType::IRQ_0X25 | IrqType::IRQ_0X26 | IrqType::IRQ_0X27 => {
-            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
-            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
-        },
-        IrqType::IRQ_0X28 | IrqType::IRQ_0X29 | IrqType::IRQ_0X2A | IrqType::IRQ_0X2B | IrqType::IRQ_0X2C | IrqType::IRQ_0X2D | IrqType::IRQ_0X2E | IrqType::IRQ_0X2F => {
-            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
-            outb(PIC_S_CTRL, pic::OCW2::new(false, false, true, 0).0);
-            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
-        },
-        _ => {
-            loop {
-                
-            }
-        }
-    }
-}
-
-// #[no_mangle]
-// pub extern "C" fn intr_handler() {
-//     debug!("intr_handler");
-//     loop {
-        
-//     }
-// }
 
 /// 主片的控制端口
 const PIC_M_CTRL: u16 = 0x20;
@@ -90,7 +62,52 @@ pub fn init() {
     let idt_pointer = DescriptorTablePointer::new((intr_table as usize + HIGH_ADDRESS_BASE).try_into().unwrap(), (IDT_MAX_LEN * 8 - 1).try_into().unwrap());
     unsafe {
         asm!("lidt [{}]", in(reg) &idt_pointer);
-        info!("intr::init done");
+    }
+    info!("intr::init done");
+}
+
+pub fn begin_intr() {
+    unsafe {
         asm!("sti");
     }
+}
+
+
+#[no_mangle]
+pub extern "C" fn intr_handler(mut intr_context: IntrContext) {
+    assert_eq!(intr_context.magic, 0x1234);
+    let intr = intr_context.intr;
+    let error_code = intr_context.error_code;
+    let eip = intr_context.eip;
+    let cs = intr_context.cs;
+    // debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs);
+    assert!((intr >> 8) == 0);
+    let intr: u8 = (intr & 0xff).try_into().unwrap();
+    match intr {
+        IrqType::TIME => {
+            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+
+            suspend_current_and_run_next();
+        },
+        IrqType::KEYBOARD | IrqType::IRQ_0X22 | IrqType::IRQ_0X23 | IrqType::IRQ_0X24 | IrqType::IRQ_0X25 | IrqType::IRQ_0X26 | IrqType::IRQ_0X27 => {
+            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+        },
+        IrqType::IRQ_0X28 | IrqType::IRQ_0X29 | IrqType::IRQ_0X2A | IrqType::IRQ_0X2B | IrqType::IRQ_0X2C | IrqType::IRQ_0X2D | IrqType::IRQ_0X2E | IrqType::IRQ_0X2F => {
+            assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+            outb(PIC_S_CTRL, pic::OCW2::new(false, false, true, 0).0);
+            outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+        },
+        _ => {
+            info!("no handle intr");
+            loop {
+                
+            }
+        }
+    }
+}
+
+extern "C" {
+    pub fn intr_exit();
 }

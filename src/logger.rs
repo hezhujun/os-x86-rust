@@ -31,8 +31,9 @@ impl log::Log for SimpleLogger {
                 // 灰色
                 Level::Trace => 90,
             };
-            println!("\x1b[{}m[{:>5}][{}] {}\x1b[0m", color, record.level(), record.target(), record.args());
-            screen_println!("[{:>5}][{}] {}", record.level(), record.target(), record.args());
+            // println!("\x1b[{}m[{:>5}][{}] {}\x1b[0m", color, record.level(), record.target(), record.args());
+            // screen_println!("[{:>5}][{}] {}", record.level(), record.target(), record.args());
+            println!("[{:>5}][{}] {}", record.level(), record.target(), record.args());
         }
         if old_eflags.contains(Eflags::IF) {
             unsafe {

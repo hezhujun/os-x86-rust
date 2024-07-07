@@ -1,8 +1,12 @@
+use core::ops::Range;
+use core::iter::*;
+use core::option::*;
 use core::convert::From;
-
 use crate::config::MEMORY_PAGE_SIZE;
 
+#[derive(Clone, Copy)]
 pub struct PhysAddr(pub usize);
+#[derive(Clone, Copy)]
 pub struct VirtAddr(pub usize);
 
 impl PhysAddr {
@@ -35,9 +39,9 @@ impl VirtAddr {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysPageNum(pub usize);
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VirtPageNum(pub usize);
 
 impl From<PhysAddr> for PhysPageNum {
@@ -80,3 +84,13 @@ impl VirtPageNum {
         }
     }
 }
+
+impl VirtAddr {
+    pub fn as_mut_ref<T>(&self) -> &mut T {
+        unsafe {
+            (self.0 as *mut T).as_mut().unwrap()
+        }
+    }
+}
+
+pub type VPNRange = Range<VirtPageNum>;

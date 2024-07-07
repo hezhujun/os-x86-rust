@@ -19,6 +19,7 @@ extern crate lazy_static;
 mod console;
 
 extern crate alloc;
+extern crate core;
 mod config;
 mod logger;
 mod lang_items;
@@ -28,6 +29,8 @@ mod boards;
 mod mm;
 mod intr;
 mod timer;
+mod process;
+mod schedule;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -44,9 +47,10 @@ pub fn main() -> ! {
     info!("Hello world!");
     mm::init();
     intr::init();
-    loop {}
     timer::init();
-    info!("Hello world!");
+    schedule::test();
+    intr::begin_intr();
+    schedule::run_tasks();
     loop {}
 }
 

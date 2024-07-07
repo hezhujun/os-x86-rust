@@ -2,9 +2,26 @@
 
 .altmacro
 .macro handle_intr
+  push edi
+  push esi
+  push ebp
+  push ebx
+  push edx
+  push ecx
+  push eax
+  xor eax, eax
+  mov eax, gs
+  push eax
+  mov eax, fs
+  push eax
+  mov eax, ds
+  push eax
+  mov eax, es
+  push eax
+  mov eax, 0x1234
+  push eax
   call intr_handler
-  add esp, 8
-  iretd
+  jmp intr_exit
 .endm
 
 .macro intr_without_error_code n
@@ -23,6 +40,28 @@ intr_entry_\n:
   push \n
   handle_intr
 .endm
+
+  .section .text.intr_exit
+  .global intr_exit
+intr_exit:
+  pop eax
+  pop eax
+  mov es, ax
+  pop eax
+  mov ds, ax
+  pop eax
+  mov fs, ax
+  pop eax
+  mov gs, ax
+  pop eax
+  pop ecx
+  pop edx
+  pop ebx
+  pop ebp
+  pop esi
+  pop edi
+  add esp, 8
+  iretd
 
 intr_without_error_code 0x00
 intr_without_error_code 0x01

@@ -2,6 +2,7 @@ pub mod address;
 pub mod frame_allocator;
 pub mod heap_allocator;
 pub mod page_table;
+pub mod memory_set;
 mod init;
 
 use core::assert;
@@ -9,9 +10,12 @@ use crate::arch::x86::AddressRangeDescriptorStructure;
 
 pub use address::*;
 pub use frame_allocator::*;
+pub use memory_set::*;
+pub use page_table::*;
 
 const ARDS_MAX_COUNT: usize = 25;
 static mut FRAME_BEGIN_ADDRESS: usize = 0;
+pub const KERNEL_PDT_ADDRESS: usize = 0x100000;
 
 pub fn set_frame_begin_address(address: usize) {
     unsafe {

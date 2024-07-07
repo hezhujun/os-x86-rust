@@ -1,9 +1,10 @@
+use core::arch::asm;
 use core::option::Option::*;
 use core::result::Result::*;
 use core::{char, str::Chars};
 use core::fmt::{self, Write};
 
-use crate::arch::x86::{ScreenAttrChar, ScreenCharAttr};
+use crate::arch::x86::{Eflags, ScreenAttrChar, ScreenCharAttr};
 
 const SCREEN_MAX_COL: usize = 80;
 const SCREEN_MAX_ROW: usize = 25;
@@ -133,7 +134,18 @@ impl Write for ScreenStdout {
 }
 
 pub fn screen_print(args: fmt::Arguments) {
+    let old_eflags = Eflags::read();
+    if old_eflags.contains(Eflags::IF) {
+        unsafe {
+            asm!("cli");
+        }
+    }
     ScreenStdout.write_fmt(args).unwrap();
+    if old_eflags.contains(Eflags::IF) {
+        unsafe {
+            asm!("sti");
+        }
+    }
 }
 
 #[macro_export]

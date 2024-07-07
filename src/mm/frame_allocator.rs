@@ -130,12 +130,6 @@ pub struct FrameTracker {
 
 impl FrameTracker {
     pub fn new(base_ppn: PhysPageNum, len: usize) -> Self {
-        for idx in 0..len {
-            let bytes_array = PhysPageNum(base_ppn.0 + idx).get_bytes_array();
-            for i in bytes_array {
-                *i = 0;
-            }
-        }
         Self { base_ppn, len }
     }
 }

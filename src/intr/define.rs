@@ -150,7 +150,7 @@ pub mod IrqType {
     pub const IRQ_0X2F: u8 = 0x2f;
 }
 
-pub struct IrqErrorCode(pub u32);
+pub struct IrqErrorCode(pub usize);
 
 impl IrqErrorCode {
     pub fn is_ext(&self) -> bool {
