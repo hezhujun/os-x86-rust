@@ -55,7 +55,7 @@ pub fn test() {
     let kstack_top0 = kstack_top;
     let kstack_base0 = VirtAddr(kstack_top0.0 - MEMORY_PAGE_SIZE);
     let stack_range0 = kstack_base0.virt_page_num_floor()..kstack_top0.virt_page_num_floor();
-    debug!("thread_0 stack [{:#x}, {:#x})", stack_range0.start.base_address().0, stack_range0.end.base_address().0);
+    debug!("thread_0 stack [{:#x}, {:#x})", &stack_range0.start.base_address().0, &stack_range0.end.base_address().0);
     let stack_area0 = MapArea::new(stack_range0, MapType::Framed, MapPermission::R | MapPermission::W);
     {
         let mut process_inner = kernel_process.inner.lock();
@@ -74,8 +74,12 @@ pub fn test() {
     let kstack_top1 = VirtAddr(kstack_top.0 - MEMORY_PAGE_SIZE * 2);
     let kstack_base1 = VirtAddr(kstack_top1.0 - MEMORY_PAGE_SIZE);
     let stack_range1 = kstack_base1.virt_page_num_floor()..kstack_top1.virt_page_num_floor();
+    debug!("thread_1 stack [{:#x}, {:#x})", &stack_range1.start.base_address().0, &stack_range1.end.base_address().0);
     let stack_area1 = MapArea::new(stack_range1, MapType::Framed, MapPermission::R | MapPermission::W);
-    kernel_process.inner.lock().memory_set.add(stack_area1);
+    {
+        let mut process_inner = kernel_process.inner.lock();
+        process_inner.memory_set.add(stack_area1);
+    }
     let intr_context1 = IntrContext::kernel_intr_context(VirtAddr(thread_1 as usize));
     let kernel_task1_inner = TaskControlBlockInner::new(
         TaskStatus::Ready, 
