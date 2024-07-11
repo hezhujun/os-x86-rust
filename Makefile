@@ -33,7 +33,7 @@ build: $(SYSTEM_IMG) mbr.bin loader.bin kernel.bin
 	python3 check_kernel_size.py
 	dd if=mbr.bin of=$(SYSTEM_IMG) bs=512 count=1 conv=notrunc
 	dd if=loader.bin of=$(SYSTEM_IMG) bs=512 count=4 seek=1 conv=notrunc
-	dd if=kernel.bin of=$(SYSTEM_IMG) bs=512 count=100 seek=5 conv=notrunc
+	dd if=kernel.bin of=$(SYSTEM_IMG) bs=512 count=240 seek=5 conv=notrunc
 
 run: build
 	qemu-system-i386 $(QEMU_ARGS)
