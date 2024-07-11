@@ -1,22 +1,31 @@
+use core::option::Option::None;
+use core::option::Option::Some;
+use core::option::Option;
+use core::convert::From;
 use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 use super::{alloc_frame, FrameTracker, PhysAddr, PhysPageNum, VirtPageNum};
-use crate::mm::KERNEL_PDT_ADDRESS;
+use crate::config::PAGE_TABLE_VIRT_ADDRESS;
+use crate::mm::*;
 use crate::{arch::x86::{PageDirectoryEntry, PageTableEntry, PdeFlags, PteFlags}, config::PTE_SIZE_IN_PAGE};
 
 pub struct PageTable {
-    root: PhysPageNum,
     frames: Vec<FrameTracker>,
 }
 
 impl PageTable {
-    pub fn new(root: PhysPageNum, frames: Vec<FrameTracker>) -> Self {
-        Self { root, frames }
+    pub fn new() -> Self {
+        Self { frames: Vec::new() }
     }
 
-    pub fn from(root: PhysPageNum) -> Self {
-        Self { root, frames: Vec::new() }
+    pub fn root_vpn() -> VirtPageNum {
+        VirtAddr(PAGE_TABLE_VIRT_ADDRESS).into()
+    }
+
+    pub fn root_ppn() -> PhysPageNum {
+        let pde_array = Self::root_vpn().get_pde_arrray();
+        PhysAddr(pde_array[0x3ff].address().try_into().unwrap()).into()
     }
 
     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
@@ -42,61 +51,68 @@ impl PageTable {
         *entry = new_entry;
     }
 
+    fn get_pte_arrray(&self, idx1: usize) -> &'static mut [PageTableEntry] {
+        let idx1 = idx1 & 0x3ff;
+        let address = 0x3ffusize << 22 | idx1 << 12;
+        let second_vpn: VirtPageNum = VirtAddr(address).into();
+        second_vpn.get_pte_arrray()
+    }
+
     fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
         let index2 = vpn.0 & 0x3ff;
         let index1 = (vpn.0 >> 10)& 0x3ff;
-        let pde_array = self.root.get_pde_arrray();
+        let root = Self::root_vpn();
+        let pde_array = root.get_pde_arrray();
         if !pde_array[index1].flag().contains(PdeFlags::P) {
             return None;
         }
-        let second_ppn: PhysPageNum = pde_array[index1].into();
-        let pte_array = second_ppn.get_pte_arrray();
+        let pte_array = self.get_pte_arrray(index1);
         Some(&mut pte_array[index2])
     }
 
     fn find_pte_create(&mut self, vpn: VirtPageNum) -> &mut PageTableEntry {
         let index2 = vpn.0 & 0x3ff;
         let index1 = (vpn.0 >> 10)& 0x3ff;
-        let pde_array = self.root.get_pde_arrray();
+        let root = Self::root_vpn();
+        let pde_array = root.get_pde_arrray();
         if !pde_array[index1].flag().contains(PdeFlags::P) {
             self.create_entry(&mut pde_array[index1]);
         }
-        let second_ppn: PhysPageNum = pde_array[index1].into();
-        let pte_array = second_ppn.get_pte_arrray();
+        let pte_array = self.get_pte_arrray(index1);
         &mut pte_array[index2]
     }
 }
 
-impl PhysPageNum {
+impl VirtPageNum {
     pub fn get_pde_arrray(&self) -> &'static mut [PageDirectoryEntry] {
-        let pa: PhysAddr = self.base_address();
+        let pa: VirtAddr = self.base_address();
         unsafe {
             core::slice::from_raw_parts_mut(pa.0 as *mut PageDirectoryEntry, PTE_SIZE_IN_PAGE)
         }
     }
 
     pub fn get_pte_arrray(&self) -> &'static mut [PageTableEntry] {
-        let pa: PhysAddr = self.base_address();
+        let pa: VirtAddr = self.base_address();
         unsafe {
             core::slice::from_raw_parts_mut(pa.0 as *mut PageTableEntry, PTE_SIZE_IN_PAGE)
         }
     }
 }
 
-impl From<PageDirectoryEntry> for PhysPageNum {
+impl From<PageDirectoryEntry> for VirtPageNum {
     fn from(value: PageDirectoryEntry) -> Self {
-        PhysAddr(value.address() as usize).into()
+        VirtAddr(value.address() as usize).into()
     }
 }
 
-impl From<PageTableEntry> for PhysPageNum {
+impl From<PageTableEntry> for VirtPageNum {
     fn from(value: PageTableEntry) -> Self {
-        PhysAddr(value.address() as usize).into()
+        VirtAddr(value.address() as usize).into()
     }
 }
 
 lazy_static! {
     pub static ref KERNEL_PAGE_TABLE: Arc<Mutex<PageTable>> = {
-        Arc::new(Mutex::new(PageTable::from(PhysAddr(KERNEL_PDT_ADDRESS).into())))
+        Arc::new(Mutex::new(PageTable::new()))
     };
 }

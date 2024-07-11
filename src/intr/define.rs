@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-use crate::{arch::x86::{GateDescriptor, INTR_GATE_ATTR}, config::{CODE_SELECTOR, HIGH_ADDRESS_BASE}, intr::{IDT_LEN, IDT_MAX_LEN}};
+use crate::{arch::x86::{GateDescriptor, INTR_GATE_ATTR}, config::CODE_SELECTOR, intr::{IDT_LEN, IDT_MAX_LEN}};
 
 extern "C" {
     pub fn intr_entry_0x00();
@@ -185,7 +185,7 @@ fn init_ldt_entry(gate: &mut GateDescriptor, idx: usize) {
         return
     }
 
-    let address: u32 = (IDT_HANDLER_ADDRESS_LIST[idx] as usize + HIGH_ADDRESS_BASE).try_into().unwrap();
+    let address: u32 = (IDT_HANDLER_ADDRESS_LIST[idx] as usize).try_into().unwrap();
     let mut _gate = GateDescriptor::new(CODE_SELECTOR, address, true, 0, INTR_GATE_ATTR);
     *gate = _gate;
     assert_eq!(CODE_SELECTOR, gate.get_selector());

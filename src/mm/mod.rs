@@ -14,19 +14,20 @@ pub use memory_set::*;
 pub use page_table::*;
 
 const ARDS_MAX_COUNT: usize = 25;
-static mut FRAME_BEGIN_ADDRESS: usize = 0;
-pub const KERNEL_PDT_ADDRESS: usize = 0x100000;
+static mut FRAME_BEGIN_PHYS_ADDRESS: usize = 0;
+pub const KERNEL_PDT_PHYS_ADDRESS: usize = 0x100000;
+pub const KERNEL_PDT_VIRT_ADDRESS: usize = 0xc0100000;
 
-pub fn set_frame_begin_address(address: usize) {
+pub fn set_frame_begin_phys_address(address: usize) {
     unsafe {
-        FRAME_BEGIN_ADDRESS = address;
+        FRAME_BEGIN_PHYS_ADDRESS = address;
     }
 }
 
 lazy_static! {
     static ref ARDS_COUNT: usize = {
         let ards_len = unsafe {
-            (0x90200 as *const u32).as_ref().unwrap()
+            (0xc0090200 as *const u32).as_ref().unwrap()
         };
         *ards_len as usize
     };
@@ -35,7 +36,7 @@ lazy_static! {
         let count: usize = *ARDS_COUNT;
         assert!(count <= ARDS_MAX_COUNT);
         let old_ards = unsafe {
-            core::slice::from_raw_parts((0x90200+4) as *const AddressRangeDescriptorStructure, count)
+            core::slice::from_raw_parts((0xc0090200usize + 4) as *const AddressRangeDescriptorStructure, count)
         };
         let mut ards = [AddressRangeDescriptorStructure::empty(); 25];
         for idx in 0..count {
@@ -81,8 +82,8 @@ impl<'a> MemoryInfo<'a> {
             if ards_address_begin <= kernel_address_end && kernel_address_end < ards_address_end {
                 assert!(false, "no free memory");
             }
-            assert!(ards_address_begin + unsafe { FRAME_BEGIN_ADDRESS as u64 } < ards_address_end);
-            let ards_address_begin: usize = (ards_address_begin + unsafe { FRAME_BEGIN_ADDRESS as u64 }).try_into().unwrap();
+            assert!(ards_address_begin + unsafe { FRAME_BEGIN_PHYS_ADDRESS as u64 } < ards_address_end);
+            let ards_address_begin: usize = (ards_address_begin + unsafe { FRAME_BEGIN_PHYS_ADDRESS as u64 }).try_into().unwrap();
             let ards_address_end: usize = ards_address_end.try_into().unwrap();
             let ards_address_begin = PhysAddr(ards_address_begin);
             let ards_address_end = PhysAddr(ards_address_end);
@@ -137,7 +138,7 @@ fn memory_info() {
     info!("bss    [{:#x}, {:#x})", sbss as usize, ebss as usize);
     info!("total  [{:#x}, {:#x})", skernel as usize, ekernel as usize);
 
-    assert!(ekernel as usize <= 0x9fc00);
+    assert!(ekernel as usize <= 0xc009fc00);
     
     MEMORY_INFO.ards_array.iter().enumerate().for_each(|(idx, ards)| {
         let address_begin = ards.get_addr();

@@ -3,94 +3,101 @@ use core::arch::asm;
 
 use crate::config::*;
 use crate::arch::x86::*;
-use crate::mm::{address::*, KERNEL_PDT_ADDRESS};
-use super::set_frame_begin_address;
+use crate::mm::*;
 use crate::mm::heap_allocator;
 
 pub fn memory_init() {
-    let gdtr = DescriptorTablePointer::new(0xc0090000, 511);
     let (kernel_heap_base_pa, end_page_pa) = init_kernel_page_table();
-    unsafe {
-        asm!("lgdt [{}]", in(reg) &gdtr);
-    }
-    set_frame_begin_address(end_page_pa.0);
-    let kernel_heap_base_address = kernel_heap_base_pa.0 + HIGH_ADDRESS_BASE;
-    let kernel_heap_end_address = kernel_heap_base_address + KERNEL_HEAP_PAGE_SIZE * MEMORY_PAGE_SIZE;
-    heap_allocator::init(kernel_heap_base_address);
-
-    info!("kernel heap space [{:#x}, {:#x})", kernel_heap_base_address, kernel_heap_end_address);
+    set_frame_begin_phys_address(end_page_pa.0);
+    let kernel_heap_base_pa = kernel_heap_base_pa.0 + HIGH_ADDRESS_BASE;
+    let kernel_heap_end_pa = kernel_heap_base_pa + KERNEL_HEAP_PAGE_SIZE * MEMORY_PAGE_SIZE;
+    let kernel_heap_base_va = KERNEL_HEAP_BASE_VIRT_ADDRESS;
+    let kernel_heap_end_va = kernel_heap_base_va + KERNEL_HEAP_PAGE_SIZE * MEMORY_PAGE_SIZE;
+    heap_allocator::init();
+    info!("kernel heap space in phys address [{:#x}, {:#x})", kernel_heap_base_pa, kernel_heap_end_pa);
+    info!("kernel heap space in phys address [{:#x}, {:#x})", kernel_heap_base_va, kernel_heap_end_va);
 }
 
 /// return (kernel_heap_base_phys_address, end_page_phys_address)
 fn init_kernel_page_table() -> (PhysAddr, PhysAddr) {
-    let root_directory_page_address = PhysAddr(KERNEL_PDT_ADDRESS);
-    let root = root_directory_page_address.phys_page_num_floor();
-    root.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
-    let root_pde_array = root.get_pde_arrray();
-    let page_base_address = root_directory_page_address.0 + MEMORY_PAGE_SIZE;
-    let mut end_page_address = page_base_address;
+    let root_directory_page_pa = PhysAddr(KERNEL_PDT_PHYS_ADDRESS);
+    let root_directory_page_va = VirtAddr(PAGE_TABLE_VIRT_ADDRESS);
+    let root_ppn = root_directory_page_pa.phys_page_num_floor();
+    let root_vpn = root_directory_page_va.virt_page_num_floor();
+    let root_pde_array = root_vpn.get_pde_arrray();
+    let page_base_pa = root_directory_page_pa.0 + MEMORY_PAGE_SIZE;
+    let mut end_page_pa = page_base_pa;
 
-    // #0 #768 pde
+    // #0-#767 pde
+    for idx in 0..=767 {
+        assert_eq!(root_pde_array[idx], PageDirectoryEntry::empty());
+    }
+
+    // #768 pde
     {
-        let page_address = PhysAddr(end_page_address);
-        end_page_address += MEMORY_PAGE_SIZE;
-        let page_ppn = page_address.phys_page_num_floor();
-        page_ppn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
-        let entry = PageDirectoryEntry::new(page_address.0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW | PdeFlags::US);
-        root_pde_array[0] = entry;
-        root_pde_array[768] = entry;
+        let page_pa: usize = end_page_pa;
+        end_page_pa += MEMORY_PAGE_SIZE;
+        let entry = PageDirectoryEntry::new(page_pa.try_into().unwrap(), PdeFlags::P | PdeFlags::RW);
+        assert_eq!(root_pde_array[768].address(), entry.address());
+        assert!(root_pde_array[768].flag().contains(PdeFlags::P | PdeFlags::RW));
     }
 
-    // #769-#1023 pde
-    for idx in 769..1024 {
-        let page_address = PhysAddr(end_page_address);
-        end_page_address += MEMORY_PAGE_SIZE;
-        let page_ppn = page_address.phys_page_num_floor();
-        page_ppn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
-        let entry = PageDirectoryEntry::new(page_address.0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW | PdeFlags::US);
-        root_pde_array[idx] = entry;
+    // #769-#1022 pde
+    for idx in 769..1023 {
+        let page_address = PhysAddr(end_page_pa);
+        end_page_pa += MEMORY_PAGE_SIZE;
+        let entry = PageDirectoryEntry::new(page_address.0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW);
+        assert_eq!(root_pde_array[idx].address(), entry.address());
+        assert!(root_pde_array[idx].flag().contains(PdeFlags::P | PdeFlags::RW));
     }
 
-    fn map(root: PhysPageNum, vpn: VirtPageNum, ppn: PhysPageNum) {
+    // #1023 pde
+    {
+        let entry = PageDirectoryEntry::new(root_directory_page_pa.0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW);
+        assert_eq!(root_pde_array[1023].address(), entry.address());
+        assert!(root_pde_array[1023].flag().contains(PdeFlags::P | PdeFlags::RW));
+    }
+
+    fn map(vpn: VirtPageNum, ppn: PhysPageNum, isAssert: bool) {
         let index2 = vpn.0 & 0x3ff;
         let index1 = (vpn.0 >> 10)& 0x3ff;
-        let pde_array = root.get_pde_arrray();
-        let second_ppn: PhysPageNum = pde_array[index1].into();
-        let pte_array = second_ppn.get_pte_arrray();
-        assert_eq!(pte_array[index2].flag().contains(PteFlags::P), false);
+        let root_va = VirtAddr(PAGE_TABLE_VIRT_ADDRESS);
+        let root_vpn = root_va.virt_page_num_floor();
+        let pde_array = root_vpn.get_pde_arrray();
+        let second_vpn: VirtPageNum = VirtAddr(0x3ff<<22 | index1 << 12).into();
+        let pte_array = second_vpn.get_pte_arrray();
+        assert_eq!(pte_array[index2].flag().contains(PteFlags::P), isAssert);
         let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), PteFlags::P | PteFlags::RW);
-        pte_array[index2] = new_entry;
+        if isAssert {
+            assert_eq!(pte_array[index2].address(), new_entry.address());
+            assert!(pte_array[index2].flag().contains(PteFlags::P | PteFlags::RW));
+        } else {
+            pte_array[index2] = new_entry;
+        }
     }
 
     // map low 1m
-    for idx in 0..root.0 {
-        let vpn = VirtPageNum(idx);
+    let high_ppn_base = VirtAddr(HIGH_ADDRESS_BASE).virt_page_num_floor();
+    for idx in 0..0x100 {
+        let vpn = VirtPageNum(high_ppn_base.0 + idx);
         let ppn = PhysPageNum(idx);
-        map(root, vpn, ppn)
+        map(vpn, ppn, true);
     }
 
     // alloc heap space
-    let kernel_heap_base_address = end_page_address;
-    for _ in 0..KERNEL_HEAP_PAGE_SIZE {
-        let page_address = PhysAddr(end_page_address);
-        end_page_address += MEMORY_PAGE_SIZE;
-        let page_ppn = page_address.phys_page_num_floor();
-        page_ppn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
-    }
-
-    // map 0x100000 - end_page_address
+    let kernel_heap_base_pa = end_page_pa;
+    let kernel_heap_base_va = KERNEL_HEAP_BASE_VIRT_ADDRESS;
+    end_page_pa += MEMORY_PAGE_SIZE * KERNEL_HEAP_PAGE_SIZE;
     let high_ppn_base = VirtAddr(HIGH_ADDRESS_BASE).virt_page_num_floor();
-    let begin_ppn = root;
-    let end_ppn = VirtAddr(end_page_address).virt_page_num_floor();
-    for idx in begin_ppn.0..end_ppn.0 {
-        map(root, VirtPageNum(high_ppn_base.0 + idx), PhysPageNum(idx));
+    let begin_ppn = VirtAddr(kernel_heap_base_pa).virt_page_num_floor();
+    let end_ppn = VirtAddr(end_page_pa).virt_page_num_floor();
+    for idx in 0..KERNEL_HEAP_PAGE_SIZE {
+        let page_pa = PhysAddr(kernel_heap_base_pa + MEMORY_PAGE_SIZE * idx);
+        let page_ppn = page_pa.phys_page_num_floor();
+        let page_va = VirtAddr(kernel_heap_base_va + MEMORY_PAGE_SIZE * idx);
+        let page_vpn = page_va.virt_page_num_floor();
+        map(page_vpn, page_ppn, false);
+        page_vpn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
     }
-
-    let cr3 = Cr3::new(root_directory_page_address.0.try_into().unwrap(), PdbrFlag::empty());
-    cr3.write();
-    let mut cr0 = Cr0::read();
-    cr0 |= Cr0::PG;
-    cr0.write();
-
-    (PhysAddr(kernel_heap_base_address), PhysAddr(end_page_address))
+    (PhysAddr(kernel_heap_base_pa), PhysAddr(end_page_pa))
 }

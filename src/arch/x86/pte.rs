@@ -53,7 +53,7 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PageDirectoryEntry(pub u32);
 impl PageDirectoryEntry {
     pub fn new(address: u32, flag: PdeFlags) -> Self {
@@ -82,7 +82,7 @@ impl Display for PageDirectoryEntry {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PageTableEntry(pub u32);
 impl PageTableEntry {
     pub fn new(address: u32, flag: PteFlags) -> Self {

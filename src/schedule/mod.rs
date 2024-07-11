@@ -5,7 +5,9 @@ use manager::{add_task, fetch_task};
 use processor::{schedule, take_current_task};
 use switch::__switch;
 
-use crate::{config::{HIGH_ADDRESS_BASE, MEMORY_PAGE_SIZE}, intr::IntrContext, mm::{MapArea, MapPermission, MapType, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr, KERNEL_PDT_ADDRESS}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
+use crate::config::{KERNEL_STACK_TOP_VIRT_ADDRESS, PAGE_TABLE_VIRT_ADDRESS};
+use crate::mm::*;
+use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MapType, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
 
 mod switch;
 mod manager;
@@ -26,24 +28,28 @@ pub fn suspend_current_and_run_next() {
 
 pub fn thread_0() {
     loop {
-        debug!("thread_0");
+        for i in 0..1000000 {
+            debug!("thread_0 [{}]", i);
+        }
     }
 }
 
 pub fn thread_1() {
     loop {
-        debug!("thread_1");
+        for i in 0..1000000 {
+            debug!("thread_1 [{}]", i);
+        }
     }
 }
 
 pub fn test() {
     let kernel_process = {
-        let memory_set = MemorySet::new(PageTable::from(PhysAddr(KERNEL_PDT_ADDRESS).into()), Vec::new());
+        let memory_set = MemorySet::new(PageTable::new(), Vec::new());
         let kernel_process_inner = ProcessControlBlockInner::new(memory_set);
         Arc::new(ProcessControlBlock::new(0, kernel_process_inner))
     };
 
-    let kstack_top = VirtAddr(usize::MAX).virt_page_num_floor().base_address();
+    let kstack_top = VirtAddr(KERNEL_STACK_TOP_VIRT_ADDRESS).virt_page_num_floor().base_address();
 
     debug!("thread_0 address {:#x}", thread_0 as usize);
     let kstack_top0 = kstack_top;
@@ -55,7 +61,7 @@ pub fn test() {
         let mut process_inner = kernel_process.inner.lock();
         process_inner.memory_set.add(stack_area0);
     }
-    let intr_context0 = IntrContext::kernel_intr_context(VirtAddr(thread_0 as usize + HIGH_ADDRESS_BASE));
+    let intr_context0 = IntrContext::kernel_intr_context(VirtAddr(thread_0 as usize));
     let kernel_task0_inner = TaskControlBlockInner::new(
         TaskStatus::Ready, 
         intr_context0, 
@@ -70,7 +76,7 @@ pub fn test() {
     let stack_range1 = kstack_base1.virt_page_num_floor()..kstack_top1.virt_page_num_floor();
     let stack_area1 = MapArea::new(stack_range1, MapType::Framed, MapPermission::R | MapPermission::W);
     kernel_process.inner.lock().memory_set.add(stack_area1);
-    let intr_context1 = IntrContext::kernel_intr_context(VirtAddr(thread_1 as usize + HIGH_ADDRESS_BASE));
+    let intr_context1 = IntrContext::kernel_intr_context(VirtAddr(thread_1 as usize));
     let kernel_task1_inner = TaskControlBlockInner::new(
         TaskStatus::Ready, 
         intr_context1, 

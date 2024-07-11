@@ -8,6 +8,9 @@ TI_GDT equ 000b
 TI_LDT equ 100b
 CODE_SELECTOR equ (1 << 3) | TI_GDT | RPL0
 DATA_SELECTOR equ (2 << 3) | TI_GDT | RPL0
+PTE_ATTR_P equ 1
+PTE_ATTR_RW equ 10b
+PTE_ATTR_U equ 100b
 
 section mbr vstart=0x90000
 
@@ -125,6 +128,75 @@ load_kernel:
 
   mov eax, 0x90000
   mov esp, eax
+
+  ; setup memory page table
+  ; root page 0x100000
+  mov eax, 0x100000
+  push eax
+  call clean_page
+  pop eax
+
+  mov eax, 0x101000
+  push eax
+  call clean_page
+  pop eax
+
+  mov ebx, 0x100000
+  or eax, PTE_ATTR_P | PTE_ATTR_RW ; pte attributes
+  mov [ebx], eax         ; #0 pde
+  mov [ebx + 768*4], eax   ; #768 pde
+
+  ; map low 1M
+  mov ebx, 0x101000
+  mov ecx, 0x100
+  mov edi, 0
+  mov eax, 0
+  or eax, PTE_ATTR_P | PTE_ATTR_RW
+.map_low_1M_loop:
+  mov [ebx + edi], eax
+  add edi, 4
+  add eax, 0x1000
+  loop .map_low_1M_loop
+
+  ; #769-#1022 pde
+  mov ecx, 254
+  mov edx, 0x102000
+  mov ebx, 0x100000
+  mov edi, 769 * 4
+.map_high_pde_loop:
+  push ecx
+  push edx
+  call clean_page
+  pop edx
+  mov eax, edx
+  or eax, PTE_ATTR_P | PTE_ATTR_RW
+  mov [ebx + edi], eax
+  add edi, 4
+  add edx, 0x1000
+  pop ecx
+  loop .map_high_pde_loop
+
+  ; #1023 pde
+  mov eax, 0x100000
+  or eax, PTE_ATTR_P | PTE_ATTR_RW
+  mov [ebx + 1023*4], eax
+
+  add dword [gdt_ptr + 2], 0xc0000000
+
+  mov eax, 0x100000
+  mov cr3, eax
+  mov eax, cr0
+  or eax, 1 << 31
+  mov cr0, eax
+
+  lgdt [gdt_ptr]
+
+  ; clean #0 pde
+  mov ebx, 0xfffff000
+  mov dword [ebx], 0
+
+  mov eax, 0xc0090000
+  mov esp, eax
   xor eax, eax
   mov ebx, eax
   mov ecx, eax
@@ -132,7 +204,29 @@ load_kernel:
   mov esi, eax
   mov edi, eax
   mov ebp, eax
-  jmp 0x500
+  jmp 0xc0000500
+
+clean_page:
+  push ebp
+  mov ebp, esp
+  push ebx
+  push edi
+  
+  mov ebx, [ebp + 8]  ; page address
+  mov edi, 0
+  mov ecx, 0x1000
+  shr ecx, 2
+  xor eax, eax
+.clean_page_loop:
+  mov [ebx + edi], eax
+  add edi, 4
+  loop .clean_page_loop
+
+  pop edi
+  pop ebx
+  mov esp, ebp
+  pop ebp
+  ret
 
 gdt_ptr_address equ $ - BASE_ADDRESS
 gdt_ptr dw 511

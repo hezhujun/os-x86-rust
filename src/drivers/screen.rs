@@ -14,7 +14,7 @@ static mut SCREEN_CURSOR_POSITION: usize = 0;
 
 fn get_screen_buffer() -> &'static mut [ScreenAttrChar] {
     unsafe {
-        core::slice::from_raw_parts_mut(0xB8000 as *mut ScreenAttrChar, SCREEN_BUFFER_LEN)
+        core::slice::from_raw_parts_mut(0xC00B8000 as *mut ScreenAttrChar, SCREEN_BUFFER_LEN)
     }
 }
 

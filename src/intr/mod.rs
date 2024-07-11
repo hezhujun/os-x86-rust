@@ -10,7 +10,6 @@ use spin::Mutex;
 use IrqType::TIME;
 use crate::arch::x86::{outb, DescriptorTablePointer, GateDescriptor};
 use crate::arch::x86::pic::{self, OCW2};
-use crate::config::HIGH_ADDRESS_BASE;
 use crate::schedule::suspend_current_and_run_next;
 
 global_asm!(include_str!("trap.S"));
@@ -59,7 +58,7 @@ pub fn init() {
     define::init();
     pic_init();
 
-    let idt_pointer = DescriptorTablePointer::new((intr_table as usize + HIGH_ADDRESS_BASE).try_into().unwrap(), (IDT_MAX_LEN * 8 - 1).try_into().unwrap());
+    let idt_pointer = DescriptorTablePointer::new((intr_table as usize).try_into().unwrap(), (IDT_MAX_LEN * 8 - 1).try_into().unwrap());
     unsafe {
         asm!("lidt [{}]", in(reg) &idt_pointer);
     }
