@@ -80,88 +80,50 @@ p_mode_start:
   mov gs, ax
   mov ss, ax
 
-load_kernel:
-  mov al, 240  ; number of sectors to read
-  mov dx, 0x1f2
-  out dx, al
-
-  mov eax, 5   ; start sector  
-  mov dx, 0x1f3
-  out dx, al
-  mov dx, 0x1f4
-  shr eax, 8
-  out dx, al
-  mov dx, 0x1f5
-  shr eax, 8
-  out dx, al
-  mov dx, 0x1f6
-  shr eax, 8
-  or al, 0xe0
-  out dx, al
-
-  mov dx, 0x1f7
-  mov al, 0x20
-  out dx, al
-
-.wait:
-  nop
-  in al, dx
-  and al, 0x88
-  cmp al, 0x08
-  jnz .wait
-
-  mov eax, 240
-  mov cx, 512
-  mul cx
-  shl edx, 16
-  mov dx, ax
-  mov ecx, edx
-  shr ecx, 1
-  
-  mov ebx, 0x500
-  mov dx, 0x1f0
-.go_on_read:
-  in ax, dx
-  mov [ebx], ax
-  add ebx, 2
-  loop .go_on_read
-
   mov eax, 0x90000
   mov esp, eax
 
-  ; setup memory page table
-  ; root page 0x100000
-  mov eax, 0x100000
-  push eax
-  call clean_page
-  pop eax
-
-  mov eax, 0x101000
-  push eax
-  call clean_page
-  pop eax
-
+  ; 0x40 * 0x100 * 512
+  ; 0x40 times
+  ; load 0x100 * 512 bytes
+  mov ecx, 0x40
   mov ebx, 0x100000
+  mov esi, 5
+load_kernel:
+  push ecx
+  push ebx
+  push dword 0x100  ; 0x100 sectors
+  push esi
+  call load_disk_32
+  add esp, 12
+  pop ecx
+  
+  add ebx, 0x20000
+  add esi, 0x100
+  loop load_kernel
+
+  ; setup memory page table
+  ; root page 0x900000
+  mov eax, 0x900000
+  push eax
+  call clean_page
+  pop eax
+
+  mov eax, 0x901000
+  push eax
+  call clean_page
+  pop eax
+
+  mov ebx, 0x900000
+  mov eax, 0x901000
   or eax, PTE_ATTR_P | PTE_ATTR_RW ; pte attributes
   mov [ebx], eax         ; #0 pde
   mov [ebx + 768*4], eax   ; #768 pde
 
-  ; map low 1M
-  mov ebx, 0x101000
-  mov ecx, 0x100
-  mov edi, 0
-  mov eax, 0
-  or eax, PTE_ATTR_P | PTE_ATTR_RW
-.map_low_1M_loop:
-  mov [ebx + edi], eax
-  add edi, 4
-  add eax, 0x1000
-  loop .map_low_1M_loop
-
   ; #769-#1022 pde
   mov ecx, 254
-  mov edx, 0x102000
-  mov ebx, 0x100000
+  mov edx, 0x902000
+  mov ebx, 0x900000
   mov edi, 769 * 4
 .map_high_pde_loop:
   push ecx
@@ -177,13 +139,43 @@ load_kernel:
   loop .map_high_pde_loop
 
   ; #1023 pde
-  mov eax, 0x100000
+  mov eax, 0x900000
   or eax, PTE_ATTR_P | PTE_ATTR_RW
   mov [ebx + 1023*4], eax
 
+  ; map low 1M and kernel space 0x100000-0x900000
+  mov ebx, 0x901000
+  mov ecx, 0x400
+  mov edi, 0
+  mov eax, 0
+  or eax, PTE_ATTR_P | PTE_ATTR_RW
+.map_loop_0x901000:
+  mov [ebx + edi], eax
+  add edi, 4
+  add eax, 0x1000
+  loop .map_loop_0x901000
+
+  mov ebx, 0x902000
+  mov ecx, 0x400
+  mov edi, 0
+.map_loop_0x902000:
+  mov [ebx + edi], eax
+  add edi, 4
+  add eax, 0x1000
+  loop .map_loop_0x902000
+
+  mov ebx, 0x903000
+  mov ecx, 0x100
+  mov edi, 0
+.map_loop_0x903000:
+  mov [ebx + edi], eax
+  add edi, 4
+  add eax, 0x1000
+  loop .map_loop_0x903000
+
   add dword [gdt_ptr + 2], 0xc0000000
 
-  mov eax, 0x100000
+  mov eax, 0x900000
   mov cr3, eax
   mov eax, cr0
   or eax, 1 << 31
@@ -204,7 +196,7 @@ load_kernel:
   mov esi, eax
   mov edi, eax
   mov ebp, eax
-  jmp 0xc0000500
+  jmp CODE_SELECTOR:0xc0100000
 
 clean_page:
   push ebp
@@ -226,6 +218,68 @@ clean_page:
   pop ebx
   mov esp, ebp
   pop ebp
+  ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 加载硬盘数据
+; 把从 sector_index 开始的 count 个扇区(最大为0x100)的内容加载到 address
+; void load_disk(uint32_t sector_index, uint32_t count, void* address)
+; 使用LBA28地址，sector_index 28位，扇区从0开始编号
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+load_disk_32:
+  push ebp
+  mov ebp, esp
+  push edi
+
+  ; 设置 count register
+  mov eax, [ebp+12]
+  mov dx, 0x1f2
+  out dx, al
+
+  ; 设置扇区起始地址
+  mov eax, [ebp+8]
+  mov dx, 0x1f3
+  out dx, al
+  mov dx, 0x1f4
+  shr eax, 8
+  out dx, al
+  mov dx, 0x1f5
+  shr eax, 8
+  out dx, al
+  mov dx, 0x1f6
+  shr eax, 8
+  or al, 0xe0
+  out dx, al
+
+  ; 设置command register，设置读命令
+  mov dx, 0x1f7
+  mov al, 0x20
+  out dx, al
+
+.wait:
+  nop
+  in al, dx
+  and al, 0x88
+  cmp al, 0x08
+  jnz .wait
+
+  mov eax, [ebp+12]
+  mov cx, 512
+  mul cx
+  shl edx, 16
+  mov dx, ax
+  mov ecx, edx
+  shr ecx, 1
+
+  cld
+  mov edi, [ebp+16]
+  mov dx, 0x1f0
+  rep insw
+
+  pop edi
+  mov esp, ebp
+  pop ebp
+
   ret
 
 gdt_ptr_address equ $ - BASE_ADDRESS

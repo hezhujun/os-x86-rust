@@ -1,7 +1,7 @@
 import os
 
 LOADER_SECTOR_COUNT = 4
-KERNEL_SECTOR_COUNT = 240
+KERNEL_SECTOR_COUNT = 0x4000
 
 if __name__ == "__main__":
     loader_size = os.path.getsize("loader.bin")

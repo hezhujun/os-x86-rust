@@ -24,16 +24,16 @@ env:
 	cargo install cargo-binutils
 
 kernel: env
-	cargo build --release
+	cargo build
 
 kernel.bin: kernel
-	rust-objcopy target/x86-unknown-bare-metal/release/os --strip-all --binary-architecture=i386 -O binary $@
+	rust-objcopy target/x86-unknown-bare-metal/debug/os --binary-architecture=i386 -O binary $@
 
 build: $(SYSTEM_IMG) mbr.bin loader.bin kernel.bin
 	python3 check_kernel_size.py
 	dd if=mbr.bin of=$(SYSTEM_IMG) bs=512 count=1 conv=notrunc
 	dd if=loader.bin of=$(SYSTEM_IMG) bs=512 count=4 seek=1 conv=notrunc
-	dd if=kernel.bin of=$(SYSTEM_IMG) bs=512 count=240 seek=5 conv=notrunc
+	dd if=kernel.bin of=$(SYSTEM_IMG) bs=512 count=16384 seek=5 conv=notrunc
 
 run: build
 	qemu-system-i386 $(QEMU_ARGS)

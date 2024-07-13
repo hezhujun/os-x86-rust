@@ -2,6 +2,8 @@ use core::option::Option;
 use alloc::sync::Arc;
 use spin::Mutex;
 
+use crate::mm::MEMROY_PAGE_BITMAP_VIRT_ADDRESS;
+
 use super::{PhysPageNum, MEMORY_INFO};
 
 pub trait FrameAllocator {
@@ -12,7 +14,7 @@ pub trait FrameAllocator {
 
 /// 0x100000000 >> 12
 const PAGE_MAX_NUMBER_IN_4G: usize = 0x100000;
-const PAGE_BITMAP_LEN_IN_4G: usize = PAGE_MAX_NUMBER_IN_4G / 8;
+pub const PAGE_BITMAP_LEN_IN_4G: usize = PAGE_MAX_NUMBER_IN_4G / 8;
 
 struct Bitmap<const N: usize> {
     map: [u8; N]
@@ -44,20 +46,14 @@ impl<const N: usize> Bitmap<{ N }> {
     }
 }
 
-pub struct SimpleAllocator {
-    page_map: Bitmap<PAGE_BITMAP_LEN_IN_4G>,
+pub struct SimpleAllocator<'a> {
+    page_map: &'a mut Bitmap<PAGE_BITMAP_LEN_IN_4G>,
     begin: usize,
     end: usize,
     current: usize,
 }
 
-impl SimpleAllocator {
-    fn new(begin: PhysPageNum, end: PhysPageNum) -> Self {
-        Self { page_map: Bitmap::new([0; PAGE_BITMAP_LEN_IN_4G]), begin: begin.0, end: end.0, current: begin.0 }
-    }
-}
-
-impl FrameAllocator for SimpleAllocator {
+impl FrameAllocator for SimpleAllocator<'_> {
     fn alloc(&mut self) -> Option<PhysPageNum> {
         for idx in self.begin..self.current {
             if !self.page_map.get(idx) {
@@ -115,11 +111,12 @@ impl FrameAllocator for SimpleAllocator {
     }
 }
 
-type FrameAllocatorImpl = SimpleAllocator;
+type FrameAllocatorImpl = SimpleAllocator<'static>;
 lazy_static! {
     pub static ref FRAME_ALLOCATOR: Arc<Mutex<FrameAllocatorImpl>> = {
         let (begin, end) = MEMORY_INFO.get_frame_space_range();
-        Arc::new(Mutex::new(FrameAllocatorImpl::new(begin, end)))
+        let bitmap = unsafe { (MEMROY_PAGE_BITMAP_VIRT_ADDRESS as *mut Bitmap<PAGE_BITMAP_LEN_IN_4G>).as_mut().unwrap() };
+        Arc::new(Mutex::new(SimpleAllocator { page_map: bitmap, begin: begin.0, end: end.0, current: begin.0 }))
     };
 }
 

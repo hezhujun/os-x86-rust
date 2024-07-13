@@ -15,12 +15,21 @@ pub use page_table::*;
 
 const ARDS_MAX_COUNT: usize = 25;
 static mut FRAME_BEGIN_PHYS_ADDRESS: usize = 0;
-pub const KERNEL_PDT_PHYS_ADDRESS: usize = 0x100000;
-pub const KERNEL_PDT_VIRT_ADDRESS: usize = 0xc0100000;
+static mut MEMROY_PAGE_BITMAP_VIRT_ADDRESS: usize = 0;
+static mut MEMROY_PAGE_BITMAP_PAGE_SIZE: usize = 0;
+pub const KERNEL_PDT_PHYS_ADDRESS: usize = 0x900000;
+pub const KERNEL_PDT_VIRT_ADDRESS: usize = 0xc0900000;
 
 pub fn set_frame_begin_phys_address(address: usize) {
     unsafe {
         FRAME_BEGIN_PHYS_ADDRESS = address;
+    }
+}
+
+pub fn set_memory_page_bitmap_info(address: usize, page_size: usize) {
+    unsafe {
+        MEMROY_PAGE_BITMAP_VIRT_ADDRESS = address;
+        MEMROY_PAGE_BITMAP_PAGE_SIZE = page_size;
     }
 }
 
@@ -137,8 +146,6 @@ fn memory_info() {
     info!("stack  [{:#x}, {:#x})", sbss_with_stack as usize, ebss_with_stack as usize);
     info!("bss    [{:#x}, {:#x})", sbss as usize, ebss as usize);
     info!("total  [{:#x}, {:#x})", skernel as usize, ekernel as usize);
-
-    assert!(ekernel as usize <= 0xc009fc00);
     
     MEMORY_INFO.ards_array.iter().enumerate().for_each(|(idx, ards)| {
         let address_begin = ards.get_addr();
