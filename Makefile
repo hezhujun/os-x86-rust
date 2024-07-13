@@ -65,3 +65,7 @@ bochs_disk_file:
 
 bochs_run: build
 	$(BOCHS_HOME)/bin/bochs -f $(BOCHS_CONFIG_FILE) -q
+
+disassemble:
+	rust-objdump --x86-asm-syntax=intel -d target/x86-unknown-bare-metal/debug/os > os.s
+	
