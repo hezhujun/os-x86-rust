@@ -27,7 +27,7 @@ kernel: env
 	cargo build
 
 kernel.bin: kernel
-	rust-objcopy target/x86-unknown-bare-metal/debug/os --binary-architecture=i386 -O binary $@
+	~/.cargo/bin/rust-objcopy target/x86-unknown-bare-metal/debug/os --binary-architecture=i386 -O binary $@
 
 build: $(SYSTEM_IMG) mbr.bin loader.bin kernel.bin
 	python3 check_kernel_size.py
