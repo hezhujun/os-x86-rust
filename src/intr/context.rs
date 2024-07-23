@@ -1,4 +1,5 @@
-use crate::{arch::x86::Eflags, config::{CODE_SELECTOR, DATA_SELECTOR}, mm::VirtAddr};
+use crate::config::*;
+use crate::{arch::x86::Eflags, mm::VirtAddr};
 
 
 #[derive(Clone, Copy)]
@@ -75,10 +76,10 @@ impl IntrContext {
             0, 
             0, 
             func_address.0,  
-            CODE_SELECTOR as usize, 
+            USER_CODE_SELECTOR as usize, 
             Eflags::IF.bits() as usize,
             user_stack_top.0,
-            DATA_SELECTOR as usize,
+            USER_DATA_SELECTOR as usize,
         )
     }
 }

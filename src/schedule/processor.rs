@@ -1,10 +1,12 @@
+use core::arch::asm;
+
 use alloc::sync::Arc;
 use spin::Mutex;
 
 use crate::process::{TaskContext, TaskControlBlock, TaskStatus};
-
+use crate::mm::TSS;
+use super::DATA_SELECTOR;
 use super::{manager::fetch_task, switch::__switch};
-
 
 
 pub struct Processor {
@@ -40,8 +42,23 @@ pub fn run_tasks() {
         if let Some(task) = fetch_task() {
             let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
             let mut task_inner = task.inner.lock();
+            let process = task.process.upgrade().unwrap();
+            let process_inner = process.inner.lock();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.status = TaskStatus::Running;
+            // 更新 tss
+            {
+                let mut tss = TSS.lock();
+                tss.esp0 = task_inner.kernel_stack_top_address.0;
+                tss.ss0 = DATA_SELECTOR as usize;
+            }
+            
+            // 切换页表
+            unsafe {
+                asm!("mov cr3, {}", in(reg) process_inner.memory_set.page_table.pdt_ppn.base_address().0);
+            }
+            
+            drop(process_inner);
             drop(task_inner);
             processor.current = Some(task);
             drop(processor);

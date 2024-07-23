@@ -2,7 +2,6 @@ MEMORY_SIZE := 16M
 SYSTEM_IMG := hd60M.img
 BOCHS_HOME := ~/package/bochs
 BOCHS_CONFIG_FILE := bochsrc
-BOCHS_DISK_FILE := 
 
 SRC_PATH := src
 

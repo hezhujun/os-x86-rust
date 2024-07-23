@@ -94,3 +94,9 @@ impl VirtAddr {
 }
 
 pub type VPNRange = Range<VirtPageNum>;
+
+impl From<VirtPageNum> for VPNRange {
+    fn from(value: VirtPageNum) -> Self {
+        value..VirtPageNum(value.0 + 1)
+    }
+}

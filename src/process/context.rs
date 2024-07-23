@@ -22,9 +22,6 @@ impl TaskContext {
     }
 
     pub fn go_to_intr_return(kstack_top: VirtAddr, intr_context: IntrContext) -> Self {
-        // fn intr_return(intrContext: IntrRegisterContext, intr: u32, error_code: u32, eip: u32, cs: u32)
-        // equal to
-        // fn intr_return(intrContext: IntrContext)
         let return_address = intr_exit as usize;
 
         let mut esp = kstack_top.0 - core::mem::size_of::<IntrContext>();

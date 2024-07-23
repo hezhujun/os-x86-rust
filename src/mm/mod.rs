@@ -4,34 +4,19 @@ pub mod heap_allocator;
 pub mod page_table;
 pub mod memory_set;
 mod init;
+mod tss;
 
-use core::assert;
-use crate::arch::x86::AddressRangeDescriptorStructure;
+use core::{arch::asm, assert};
+use crate::{arch::x86::{AddressRangeDescriptorStructure, DescriptorType, GDTRegister, SegmentDescriptor}, config::{DATA_SELECTOR, GDT_SIZE, KERNEL_STACK_TOP_VIRT_ADDRESS}};
 
 pub use address::*;
+use alloc::sync::Arc;
 pub use frame_allocator::*;
 pub use memory_set::*;
 pub use page_table::*;
+use spin::Mutex;
 
 const ARDS_MAX_COUNT: usize = 25;
-static mut FRAME_BEGIN_PHYS_ADDRESS: usize = 0;
-static mut MEMROY_PAGE_BITMAP_VIRT_ADDRESS: usize = 0;
-static mut MEMROY_PAGE_BITMAP_PAGE_SIZE: usize = 0;
-pub const KERNEL_PDT_PHYS_ADDRESS: usize = 0x900000;
-pub const KERNEL_PDT_VIRT_ADDRESS: usize = 0xc0900000;
-
-pub fn set_frame_begin_phys_address(address: usize) {
-    unsafe {
-        FRAME_BEGIN_PHYS_ADDRESS = address;
-    }
-}
-
-pub fn set_memory_page_bitmap_info(address: usize, page_size: usize) {
-    unsafe {
-        MEMROY_PAGE_BITMAP_VIRT_ADDRESS = address;
-        MEMROY_PAGE_BITMAP_PAGE_SIZE = page_size;
-    }
-}
 
 lazy_static! {
     static ref ARDS_COUNT: usize = {
@@ -70,7 +55,7 @@ impl<'a> MemoryInfo<'a> {
         Self { kernel_space, stack_space, ards_array }
     }
 
-    pub fn get_frame_space_range(&self) -> (PhysPageNum, PhysPageNum) {
+    pub fn get_frame_space_end(&self) -> PhysPageNum {
         let mut max_memory_size: u64 = 0;
         let mut useable_ards: Option<&AddressRangeDescriptorStructure> = None;
         self.ards_array.iter().for_each(|ards| {
@@ -91,12 +76,9 @@ impl<'a> MemoryInfo<'a> {
             if ards_address_begin <= kernel_address_end && kernel_address_end < ards_address_end {
                 assert!(false, "no free memory");
             }
-            assert!(ards_address_begin + unsafe { FRAME_BEGIN_PHYS_ADDRESS as u64 } < ards_address_end);
-            let ards_address_begin: usize = (ards_address_begin + unsafe { FRAME_BEGIN_PHYS_ADDRESS as u64 }).try_into().unwrap();
             let ards_address_end: usize = ards_address_end.try_into().unwrap();
-            let ards_address_begin = PhysAddr(ards_address_begin);
             let ards_address_end = PhysAddr(ards_address_end);
-            (ards_address_begin.phys_page_num_ceil(), ards_address_end.phys_page_num_floor())
+            ards_address_end.phys_page_num_floor()
         } else {
             panic!("no free memory");
         }
@@ -115,12 +97,40 @@ lazy_static! {
         let stack_space = (sbss_with_stack as usize, ebss_with_stack as usize);
         MemoryInfo::new(kernel_space, stack_space, &ARDS_ARRAY_REFERENCE)
     };
-}
 
+    pub static ref TSS: Arc<Mutex<tss::TSS>> = {
+        let mut tss = tss::TSS::empty();
+        tss.esp0 = KERNEL_STACK_TOP_VIRT_ADDRESS;
+        tss.ss0 = DATA_SELECTOR as usize;
+        Arc::new(Mutex::new(tss))
+    };
+}
 
 pub fn init() {
     memory_info();
-    init::memory_init();
+    init::init_kernel_page_table();
+    heap_allocator::init();
+    let _ = KERNEL_MEMORY_SET.lock();
+
+    // 设置用户态的全局描述符表表项
+    let gdt = unsafe {
+        core::slice::from_raw_parts_mut(0xc0090000usize as *mut SegmentDescriptor, GDT_SIZE)
+    };
+    gdt[3] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X, false, 0b11, true, false, false, true);
+    gdt[4] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W, false, 0b11, true, false, false, true);
+    
+    // 设置 tss
+    {
+        let tss = TSS.lock();
+        gdt[5] = SegmentDescriptor::new(&tss as *const _ as u32, core::mem::size_of::<tss::TSS>().try_into().unwrap(), false, DescriptorType::from_bits(9).unwrap(), true, 0, true, false, false, false);
+    }
+
+    let gdtr = GDTRegister::new(511, 0xc0090000);
+    unsafe {
+        asm!("lgdt [eax]", in("eax") &gdtr as *const _ as usize);
+        asm!("ltr ax", in("ax") DATA_SELECTOR);
+    }
+
     info!("mm::init done");
 }
 

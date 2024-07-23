@@ -1,13 +1,15 @@
+use core::option::Option;
 use core::option::Option::Some;
+use core::option::Option::None;
 use core::mem::drop;
 use alloc::{sync::Arc, task, vec::Vec};
 use manager::{add_task, fetch_task};
 use processor::{schedule, take_current_task};
 use switch::__switch;
 
-use crate::config::{KERNEL_STACK_TOP_VIRT_ADDRESS, PAGE_TABLE_VIRT_ADDRESS};
+use crate::config::*;
 use crate::mm::*;
-use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MapType, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
+use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
 
 mod switch;
 mod manager;
@@ -26,70 +28,55 @@ pub fn suspend_current_and_run_next() {
     }
 }
 
-pub fn thread_0() {
-    loop {
-        for i in 0..1000000 {
-            debug!("thread_0 [{}]", i);
-        }
-    }
+pub fn init() {
+    
 }
 
-pub fn thread_1() {
-    loop {
-        for i in 0..1000000 {
-            debug!("thread_1 [{}]", i);
-        }
-    }
-}
+static mut PROCESS_LIST: Option<[Arc<ProcessControlBlock>; 3]> = None;
 
 pub fn test() {
-    let kernel_process = {
-        let memory_set = MemorySet::new(PageTable::new(), Vec::new());
-        let kernel_process_inner = ProcessControlBlockInner::new(memory_set);
-        Arc::new(ProcessControlBlock::new(0, kernel_process_inner))
+    extern "C" {
+        fn app_0_start();
+        fn app_0_end();
+        fn app_1_start();
+        fn app_1_end();
+        fn app_2_start();
+        fn app_2_end();
+    }
+
+    let app_0_data = unsafe {
+        core::slice::from_raw_parts(app_0_start as usize as *const u8, app_0_end as usize - app_0_start as usize)
+    };
+    let app_1_data = unsafe {
+        core::slice::from_raw_parts(app_1_start as usize as *const u8, app_1_end as usize - app_1_start as usize)
+    };
+    let app_2_data = unsafe {
+        core::slice::from_raw_parts(app_2_start as usize as *const u8, app_2_end as usize - app_2_start as usize)
     };
 
-    let kstack_top = VirtAddr(KERNEL_STACK_TOP_VIRT_ADDRESS).virt_page_num_floor().base_address();
+    let process0 = ProcessControlBlock::new(app_0_data);
+    let task0 = {
+        let inner = process0.inner.lock();
+        inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
+    };
+    let process1 = ProcessControlBlock::new(app_1_data);
+    let task1 = {
+        let inner = process1.inner.lock();
+        inner.tasks[1].as_ref().map(|task| task.clone()).unwrap()
+    };
+    let process2 = ProcessControlBlock::new(app_2_data);
+    let task2 = {
+        let inner = process2.inner.lock();
+        inner.tasks[2].as_ref().map(|task| task.clone()).unwrap()
+    };
 
-    debug!("thread_0 address {:#x}", thread_0 as usize);
-    let kstack_top0 = kstack_top;
-    let kstack_base0 = VirtAddr(kstack_top0.0 - MEMORY_PAGE_SIZE);
-    let stack_range0 = kstack_base0.virt_page_num_floor()..kstack_top0.virt_page_num_floor();
-    debug!("thread_0 stack [{:#x}, {:#x})", &stack_range0.start.base_address().0, &stack_range0.end.base_address().0);
-    let stack_area0 = MapArea::new(stack_range0, MapType::Framed, MapPermission::R | MapPermission::W);
-    {
-        let mut process_inner = kernel_process.inner.lock();
-        process_inner.memory_set.add(stack_area0);
+    add_task(task0);
+    add_task(task1);
+    add_task(task2);
+
+    unsafe {
+        PROCESS_LIST = Some([process0, process1, process2]);
     }
-    let intr_context0 = IntrContext::kernel_intr_context(VirtAddr(thread_0 as usize));
-    let kernel_task0_inner = TaskControlBlockInner::new(
-        TaskStatus::Ready, 
-        intr_context0, 
-        TaskContext::go_to_intr_return(kstack_top0, intr_context0)
-    );
-    let kernel_task0 = Arc::new(TaskControlBlock::new(kernel_process.clone(), kernel_task0_inner));
-    kernel_process.inner.lock().tasks.push(Some(kernel_task0.clone()));
 
-    debug!("thread_1 address {:#x}", thread_1 as usize);
-    let kstack_top1 = VirtAddr(kstack_top.0 - MEMORY_PAGE_SIZE * 2);
-    let kstack_base1 = VirtAddr(kstack_top1.0 - MEMORY_PAGE_SIZE);
-    let stack_range1 = kstack_base1.virt_page_num_floor()..kstack_top1.virt_page_num_floor();
-    debug!("thread_1 stack [{:#x}, {:#x})", &stack_range1.start.base_address().0, &stack_range1.end.base_address().0);
-    let stack_area1 = MapArea::new(stack_range1, MapType::Framed, MapPermission::R | MapPermission::W);
-    {
-        let mut process_inner = kernel_process.inner.lock();
-        process_inner.memory_set.add(stack_area1);
-    }
-    let intr_context1 = IntrContext::kernel_intr_context(VirtAddr(thread_1 as usize));
-    let kernel_task1_inner = TaskControlBlockInner::new(
-        TaskStatus::Ready, 
-        intr_context1, 
-        TaskContext::go_to_intr_return(kstack_top1, intr_context1)
-    );
-    let kernel_task1 = Arc::new(TaskControlBlock::new(kernel_process.clone(), kernel_task1_inner));
-    kernel_process.inner.lock().tasks.push(Some(kernel_task1.clone()));
-
-    add_task(kernel_task0);
-    add_task(kernel_task1);
     debug!("test done");
 }

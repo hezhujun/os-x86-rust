@@ -15,3 +15,4 @@ lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 log = { version = "0.4.20", features = ["max_level_trace", "release_max_level_trace"] }
 buddy_system_allocator = "0.6"
 spin = "0.7.0"
+xmas-elf = "0.7.0"

@@ -20,7 +20,7 @@ const IDT_MAX_LEN: usize = 256;
 type IntrHandlerFn = fn(IntrContext);
 
 lazy_static! {
-    static ref INTR_HANDLER_TABLE: Arc<Mutex<[IntrHandlerFn; IDT_MAX_LEN]>> = Arc::new(Mutex::new([default_intr_handler; IDT_MAX_LEN]));
+    pub static ref INTR_HANDLER_TABLE: Arc<Mutex<[IntrHandlerFn; IDT_MAX_LEN]>> = Arc::new(Mutex::new([default_intr_handler; IDT_MAX_LEN]));
 }
 
 pub fn init() {
@@ -46,7 +46,7 @@ pub fn begin_intr() {
 
 
 #[no_mangle]
-pub extern "C" fn intr_handler(mut intr_context: IntrContext) {
+pub extern "C" fn intr_handler(intr_context: IntrContext) {
     assert_eq!(intr_context.magic, 0x1234);
     let intr = intr_context.intr;
     let error_code = intr_context.error_code;
