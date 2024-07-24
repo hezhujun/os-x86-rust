@@ -32,7 +32,23 @@ pub fn init() {
     
 }
 
-static mut PROCESS_LIST: Option<[Arc<ProcessControlBlock>; 3]> = None;
+static mut PROCESS_LIST: Option<[Arc<ProcessControlBlock>; 5]> = None;
+
+pub fn thread_0() {
+    loop {
+        for i in 0..1000000 {
+            debug!("thread_0 [{}]", i);
+        }
+    }
+}
+
+pub fn thread_1() {
+    loop {
+        for i in 0..1000000 {
+            debug!("thread_1 [{}]", i);
+        }
+    }
+}
 
 pub fn test() {
     extern "C" {
@@ -70,12 +86,25 @@ pub fn test() {
         inner.tasks[2].as_ref().map(|task| task.clone()).unwrap()
     };
 
+    let process3 = ProcessControlBlock::new_kernel_process(thread_0 as usize);
+    let task3 = {
+        let inner = process3.inner.lock();
+        inner.tasks[3].as_ref().map(|task| task.clone()).unwrap()
+    };
+    let process4 = ProcessControlBlock::new_kernel_process(thread_1 as usize);
+    let task4 = {
+        let inner = process4.inner.lock();
+        inner.tasks[4].as_ref().map(|task| task.clone()).unwrap()
+    };
+
+    add_task(task3);
+    add_task(task4);
     add_task(task0);
     add_task(task1);
     add_task(task2);
 
     unsafe {
-        PROCESS_LIST = Some([process0, process1, process2]);
+        PROCESS_LIST = Some([process0, process1, process2, process3, process4]);
     }
 
     debug!("test done");

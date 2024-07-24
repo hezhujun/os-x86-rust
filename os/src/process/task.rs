@@ -16,9 +16,9 @@ pub struct TaskControlBlockInner {
     pub intr_cx: IntrContext,
     pub task_cx: TaskContext,
     pub kernel_stack_top_address: VirtAddr,
-    pub user_stack_top_address: VirtAddr,
+    pub user_stack_top_address: Option<VirtAddr>,
     pub kernel_stack_map_area: MapArea,
-    pub user_stack_map_area: MapArea,
+    pub user_stack_map_area: Option<MapArea>,
 }
 
 pub struct TaskControlBlock {
@@ -32,16 +32,22 @@ impl TaskControlBlock {
         let mut process_inner = process.inner.lock();
         let tid = process_inner.tid_allocator.alloc().unwrap();
         // user stack
-        let user_stack_top_address = USER_STACK_TOP_VIRT_ADDRESS - (USER_STACK_SIZE + MEMORY_PAGE_SIZE) * tid;
-        let user_stack_bottom_address = user_stack_top_address - USER_STACK_SIZE;
-        let user_stack_top_va = VirtAddr(user_stack_top_address);
-        let user_stack_bottom_va = VirtAddr(user_stack_bottom_address);
-        let mut user_stack_area = MapArea::new(
-            VirtPageNum::from(user_stack_bottom_va)..VirtPageNum::from(user_stack_top_va),
-            None,
-            MapPermission::R | MapPermission::W | MapPermission::U
-        );
-        user_stack_area.map(&mut process_inner.memory_set.page_table);
+        let (user_stack_top_va, user_stack_area, intr_context) = if is_kernel_task {
+            let user_stack_top_address = USER_STACK_TOP_VIRT_ADDRESS - (USER_STACK_SIZE + MEMORY_PAGE_SIZE) * tid;
+            let user_stack_bottom_address = user_stack_top_address - USER_STACK_SIZE;
+            let user_stack_top_va = VirtAddr(user_stack_top_address);
+            let user_stack_bottom_va = VirtAddr(user_stack_bottom_address);
+            let mut user_stack_area = MapArea::new(
+                VirtPageNum::from(user_stack_bottom_va)..VirtPageNum::from(user_stack_top_va),
+                None,
+                MapPermission::R | MapPermission::W | MapPermission::U
+            );
+            user_stack_area.map(&mut process_inner.memory_set.page_table);
+            (Some(user_stack_top_va), Some(user_stack_area), IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address)))
+        } else {
+            (None, None, IntrContext::kernel_intr_context(VirtAddr(entry_point)))
+        };
+        
         // kernel stack
         let kernel_stack_vstub = alloc_kernel_virt_frame(KERNEL_STACK_PAGE_SIZE + 1).unwrap();
         let kernel_stack_bottom_vpn = VirtPageNum(kernel_stack_vstub.base_vpn.0 + 1);
@@ -52,11 +58,6 @@ impl TaskControlBlock {
             MapPermission::R | MapPermission::W
         );
         kernel_stack_area.map(&mut process_inner.memory_set.page_table);
-        let intr_context = if is_kernel_task {
-            IntrContext::kernel_intr_context(VirtAddr(entry_point))
-        } else {
-            IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address))
-        };
         let task_inner = TaskControlBlockInner {
             status: TaskStatus::Ready,
             intr_cx: IntrContext::empty(),
@@ -76,7 +77,9 @@ impl Drop for TaskControlBlock {
         if let Some(process) = self.process.upgrade() {
             let mut process_inner = process.inner.lock();
             let mut task_inner = self.inner.lock();
-            task_inner.user_stack_map_area.unmap(&mut process_inner.memory_set.page_table);
+            if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
+                map_area.unmap(&mut process_inner.memory_set.page_table)
+            }
             task_inner.kernel_stack_map_area.unmap(&mut process_inner.memory_set.page_table);
             process_inner.tid_allocator.dealloc(self.tid);
         }

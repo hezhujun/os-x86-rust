@@ -108,6 +108,17 @@ impl Drop for MemorySet {
 }
 
 impl MemorySet {
+
+    pub fn new_kernel_memory_set() -> Self {
+        // 创建 page_table
+        let pdt_pstub = alloc_phys_frame(1).unwrap();
+        let pdt_ppn = pdt_pstub.base_ppn;
+        let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
+        let pdt_vpn = pdt_vstub.base_vpn;
+        let page_table = PageTable::new(pdt_ppn, pdt_vpn);
+        MemorySet { pdt_pstub, pdt_vstub, page_table, areas: Vec::new(), user_stack_base: 0 }
+    }
+
     /// return MemorySet and entry point
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize) {
         // 创建 page_table
