@@ -19,6 +19,7 @@ SECTIONS
     .data : {
         *(.data .data.*)
         *(.sdata .sdata.*)
+        *(.got, .got.*)
     }
     . = ALIGN(4K);
     .bss : {

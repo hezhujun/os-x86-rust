@@ -105,7 +105,8 @@ impl Screen {
         }
     }
 
-    pub fn print(&self, text: &str, attr: ScreenCharAttr) {
+    pub fn print(&self, text: &str) {
+        let attr = ScreenCharAttr::FOREGROUND_R | ScreenCharAttr::FOREGROUND_G | ScreenCharAttr::FOREGROUND_B;
         let mut iter = text.chars();
         while let Some(c) = iter.next() {
             self.handle_char(c, &mut iter, attr);
@@ -128,7 +129,7 @@ struct ScreenStdout;
 
 impl Write for ScreenStdout {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        SCREEN.print(s, ScreenCharAttr::FOREGROUND_R | ScreenCharAttr::FOREGROUND_G | ScreenCharAttr::FOREGROUND_B);
+        SCREEN.print(s);
         Ok(())
     }
 }

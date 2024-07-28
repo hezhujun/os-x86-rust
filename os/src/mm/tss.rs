@@ -1,5 +1,5 @@
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct TSS {
     pub last_tss_ptr: usize,
     pub esp0: usize,
@@ -26,7 +26,7 @@ pub struct TSS {
     pub fs: usize,
     pub gs: usize,
     pub ldt_selector: usize,
-    reserve: u16,
+    pub(crate) reserve: u16,
     pub io_map_offset: u16,
 }
 

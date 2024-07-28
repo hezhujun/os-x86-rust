@@ -36,6 +36,8 @@ pub fn init() {
     // 只打开时钟中断
     outb(PIC_M_DATA, 0xfe);
     outb(PIC_S_DATA, 0xff);
+
+    register_pic_intr();
 }
 
 fn register_pic_intr() {

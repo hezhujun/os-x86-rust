@@ -7,7 +7,8 @@ mod init;
 mod tss;
 
 use core::{arch::asm, assert};
-use crate::{arch::x86::{AddressRangeDescriptorStructure, DescriptorType, GDTRegister, SegmentDescriptor}, config::{DATA_SELECTOR, GDT_SIZE, KERNEL_STACK_TOP_VIRT_ADDRESS}};
+use crate::config::*;
+use crate::arch::x86::{AddressRangeDescriptorStructure, DescriptorType, GDTRegister, SegmentDescriptor};
 
 pub use address::*;
 use alloc::sync::Arc;
@@ -98,12 +99,20 @@ lazy_static! {
         MemoryInfo::new(kernel_space, stack_space, &ARDS_ARRAY_REFERENCE)
     };
 
-    pub static ref TSS: Arc<Mutex<tss::TSS>> = {
-        let mut tss = tss::TSS::empty();
-        tss.esp0 = KERNEL_STACK_TOP_VIRT_ADDRESS;
-        tss.ss0 = DATA_SELECTOR as usize;
-        Arc::new(Mutex::new(tss))
+    pub static ref TSS_MUTEX: Arc<Mutex<()>> = {
+        Arc::new(Mutex::new(()))
     };
+}
+
+static mut TSS: tss::TSS = tss::TSS { last_tss_ptr: 0, esp0: 0, ss0: 0, esp1: 0, ss1: 0, esp2: 0, ss2: 0, cr3: 0, eip: 0, eflags: 0, eax: 0, ecx: 0, edx: 0, ebx: 0, esp: 0, ebp: 0, esi: 0, edi: 0, es: 0, cs: 0, ss: 0, ds: 0, fs: 0, gs: 0, ldt_selector: 0, reserve: 0, io_map_offset: 0 };
+
+pub fn update_tss(ss0: usize, esp0: usize) {
+    let lock: spin::MutexGuard<()> = TSS_MUTEX.lock();
+    unsafe {
+        TSS.ss0 = ss0;
+        TSS.esp0 = esp0;
+    }
+    drop(lock);
 }
 
 pub fn init() {
@@ -116,21 +125,25 @@ pub fn init() {
     let gdt = unsafe {
         core::slice::from_raw_parts_mut(0xc0090000usize as *mut SegmentDescriptor, GDT_SIZE)
     };
-    gdt[3] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X, false, 0b11, true, false, false, true);
-    gdt[4] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W, false, 0b11, true, false, false, true);
+    let code_segment = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X | DescriptorType::A, true, 0, true, false, false, true);
+    assert_eq!(gdt[1], code_segment);
+    let data_segment = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W | DescriptorType::A, true, 0, true, false, false, true);
+    assert_eq!(gdt[2], data_segment);
+    gdt[3] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X, true, 0b11, true, false, false, true);
+    gdt[4] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W, true, 0b11, true, false, false, true);
     
     // 设置 tss
     {
-        let tss = TSS.lock();
-        gdt[5] = SegmentDescriptor::new(&tss as *const _ as u32, core::mem::size_of::<tss::TSS>().try_into().unwrap(), false, DescriptorType::from_bits(9).unwrap(), true, 0, true, false, false, false);
+        update_tss(DATA_SELECTOR as usize, KERNEL_ORIGIN_STACK_TOP_VIRT_ADDRESS);
+        let tss_reference = unsafe { &TSS };
+        gdt[5] = SegmentDescriptor::new(tss_reference as *const _ as u32, core::mem::size_of::<tss::TSS>().try_into().unwrap(), false, DescriptorType::from_bits(9).unwrap(), false, 0, true, false, false, false);
     }
 
     let gdtr = GDTRegister::new(511, 0xc0090000);
     unsafe {
-        asm!("lgdt [eax]", in("eax") &gdtr as *const _ as usize);
-        asm!("ltr ax", in("ax") DATA_SELECTOR);
+        // asm!("lgdt [{}]", in(reg) &gdtr as *const _ as usize);
+        asm!("ltr ax", in("ax") TSS_SELECTOR);
     }
-
     info!("mm::init done");
 }
 

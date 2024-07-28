@@ -58,7 +58,7 @@ impl IntrContext {
     /// Create intr context which will return to run kernel function
     pub fn kernel_intr_context(func_address: VirtAddr) -> Self {
         Self::new(
-            IntrRegisterContext::kernel_empty(), 
+            IntrRegisterContext::kernel_default(), 
             0, 
             0, 
             func_address.0,  
@@ -72,7 +72,7 @@ impl IntrContext {
     /// Create intr context which will return to run user function
     pub fn user_intr_context(func_address: VirtAddr, user_stack_top: VirtAddr) -> Self {
         Self::new(
-            IntrRegisterContext::user_empty(), 
+            IntrRegisterContext::user_default(), 
             0, 
             0, 
             func_address.0,  
@@ -106,11 +106,11 @@ impl IntrRegisterContext {
         Self { es: 0, ds: 0, fs: 0, gs: 0, eax: 0, ecx: 0, edx: 0, ebx: 0, ebp: 0, esi: 0, edi: 0 }
     }
 
-    pub fn kernel_empty() -> Self {
+    pub fn kernel_default() -> Self {
         Self { es: DATA_SELECTOR as usize, ds: DATA_SELECTOR as usize, fs: DATA_SELECTOR as usize, gs: DATA_SELECTOR as usize, eax: 0, ecx: 0, edx: 0, ebx: 0, ebp: 0, esi: 0, edi: 0 }
     }
     
-    pub fn user_empty() -> Self {
-        Self { es: DATA_SELECTOR as usize, ds: DATA_SELECTOR as usize, fs: DATA_SELECTOR as usize, gs: DATA_SELECTOR as usize, eax: 0, ecx: 0, edx: 0, ebx: 0, ebp: 0, esi: 0, edi: 0 }
+    pub fn user_default() -> Self {
+        Self { es: DATA_SELECTOR as usize, ds: USER_DATA_SELECTOR as usize, fs: DATA_SELECTOR as usize, gs: DATA_SELECTOR as usize, eax: 0, ecx: 0, edx: 0, ebx: 0, ebp: 0, esi: 0, edi: 0 }
     }
 }

@@ -65,8 +65,12 @@ impl MapArea {
         let frame = alloc_phys_frame(1).unwrap();
         let ppn: PhysPageNum = frame.base_ppn;
         self.data_frames.insert(vpn, frame);
-        page_table.map(vpn, ppn, self.map_perm.into());
-        vpn.get_bytes_array().iter_mut().for_each(|b| *b = 0);
+        page_table.map_with_create_pde(vpn, ppn, self.map_perm.into());
+        assert!(page_table.is_pte_present(vpn));
+        page_table.get_mut::<[u8; MEMORY_PAGE_SIZE], _>(vpn, 0, |bytes_array| {
+            bytes_array.iter_mut().for_each(|b| * b = 0);
+        });
+        assert!(page_table.is_pte_present(vpn));
     }
 
     fn unmap_once(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
@@ -82,8 +86,9 @@ impl MapArea {
         for idx in self.vpn_range.start.0..self.vpn_range.end.0 {
             let vpn = VirtPageNum(idx);
             let src = &data[start..len.min(start + MEMORY_PAGE_SIZE)];
-            page_table.get_page_bytes_array(vpn, |bytes_array| {
-                bytes_array.copy_from_slice(src);
+            page_table.get_mut::<[u8; MEMORY_PAGE_SIZE], _>(vpn, 0, | bytes_array | {
+                let dst = &mut bytes_array[..src.len()];
+                dst.copy_from_slice(src);
                 start += MEMORY_PAGE_SIZE;
             });
             if start >= len {
@@ -148,7 +153,7 @@ impl MemorySet {
                 if ph_flags.is_write() { map_perm |= MapPermission::W; }
                 if ph_flags.is_execute() { map_perm |= MapPermission::X; }
                 let map_area = MapArea::new(
-                    VirtPageNum::from(start_va)..VirtPageNum::from(end_va),
+                    start_va.virt_page_num_floor()..end_va.virt_page_num_ceil(),
                     None,
                     map_perm
                 );
@@ -165,12 +170,11 @@ impl MemorySet {
         // guard page
         user_stack_base += MEMORY_PAGE_SIZE;
         memory_set.user_stack_base = user_stack_base;
-        
         (memory_set, elf.header.pt2.entry_point() as usize)
     }
 
     pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
-        map_area.map(& mut self.page_table);
+        map_area.map(&mut self.page_table);
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
         }
@@ -185,8 +189,8 @@ lazy_static! {
         let pdt_pstub = PhysFrameStub { base_ppn: pdt_ppn, len: 1 };
         let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
         let pdt_vpn = pdt_vstub.base_vpn;
-        let mut page_table = PageTable::from_exists(pdt_ppn, pdt_vpn);
-        page_table.map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
+        PageTable::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
+        let page_table = PageTable::from_exists(pdt_ppn, pdt_vpn);
         // 内核的 user_stack_base 没有作用
         Arc::new(Mutex::new(MemorySet { pdt_pstub, pdt_vstub, page_table, areas: Vec::new(), user_stack_base: 0 }))
     };

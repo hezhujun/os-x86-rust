@@ -23,7 +23,6 @@ impl TaskContext {
 
     pub fn go_to_intr_return(kstack_top: VirtAddr, intr_context: IntrContext) -> Self {
         let return_address = intr_exit as usize;
-
         let mut esp = kstack_top.0 - core::mem::size_of::<IntrContext>();
         let stack_top = VirtAddr(esp);
         *stack_top.as_mut_ref() = intr_context;

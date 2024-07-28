@@ -3,7 +3,7 @@ use core::option::Option;
 use alloc::sync::Arc;
 use spin::Mutex;
 
-use crate::{config::*, mm::VirtPageNum};
+use crate::{config::*, mm::{PhysAddr, VirtAddr, VirtPageNum}};
 use super::{PhysPageNum, MEMORY_INFO};
 use crate::utils::*;
 
@@ -26,7 +26,7 @@ impl<'a, const N: usize> SimpleAllocator<'a, { N }> {
         assert!(begin < end);
         assert!(begin <= current);
         assert!(current <= end);
-        assert!((end - begin) <= N * 8);
+        assert!((end - begin) <= N * 8, "end {:#x} begin {:#x} end - begin {:#x} N * 8 {:#x}", end, begin, end - begin, N * 8);
         Self { page_map, base, begin, end, current}
     }
 
@@ -106,15 +106,15 @@ type PhysFrameAllocatorImpl = SimpleAllocator<'static, PHYS_FRAME_BITMAP_SIZE>;
 type KernelVirtFrameAllocatorImpl = SimpleAllocator<'static, KERNEL_VIRT_FRAME_BITMAP_SIZE>;
 lazy_static! {
     static ref PHYS_FRAME_ALLOCATOR: Arc<Mutex<PhysFrameAllocatorImpl>> = {
-        let begin_ppn = PhysPageNum(FREE_PHYS_FRAME_BEGIN_ADDRESS);
+        let begin_ppn = PhysPageNum::from(PhysAddr(FREE_PHYS_FRAME_BEGIN_ADDRESS));
         let end_ppn = MEMORY_INFO.get_frame_space_end();
         let bitmap = unsafe { (PHYS_FRAME_BITMAP_VIRT_ADDRESS as *mut Bitmap<PHYS_FRAME_BITMAP_SIZE>).as_mut().unwrap() };
         Arc::new(Mutex::new(SimpleAllocator::new(bitmap, 0, begin_ppn.0, end_ppn.0, begin_ppn.0)))
     };
 
     static ref KERNEL_VIRT_FRAME_ALLOCATOR: Arc<Mutex<KernelVirtFrameAllocatorImpl>> = {
-        let begin_vpn = VirtPageNum(FREE_KERNEL_VIRT_FRAME_BEGIN_ADDRESS);
-        let end_vpn = VirtPageNum(FREE_KERNEL_VIRT_FRAME_END_ADDRESS);
+        let begin_vpn = VirtPageNum::from(VirtAddr(FREE_KERNEL_VIRT_FRAME_BEGIN_ADDRESS));
+        let end_vpn = VirtPageNum::from(VirtAddr(FREE_KERNEL_VIRT_FRAME_END_ADDRESS));
         let bitmap = unsafe { (KERNEL_VIRT_FRAME_BITMAP_VIRT_ADDRESS as *mut Bitmap<KERNEL_VIRT_FRAME_BITMAP_SIZE>).as_mut().unwrap() };
         Arc::new(Mutex::new(SimpleAllocator::new(bitmap, HIGH_ADDRESS_BASE >> 12, begin_vpn.0, end_vpn.0, begin_vpn.0)))
     };

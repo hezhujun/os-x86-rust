@@ -24,7 +24,7 @@ pub struct TaskControlBlockInner {
 pub struct TaskControlBlock {
     pub tid: usize,
     pub process: Weak<ProcessControlBlock>,
-    pub inner: Arc<Mutex<TaskControlBlockInner>>,
+    pub task_inner: Arc<Mutex<TaskControlBlockInner>>,
 }
 
 impl TaskControlBlock {
@@ -32,7 +32,7 @@ impl TaskControlBlock {
         let mut process_inner = process.inner.lock();
         let tid = process_inner.tid_allocator.alloc().unwrap();
         // user stack
-        let (user_stack_top_va, user_stack_area, intr_context) = if is_kernel_task {
+        let (user_stack_top_va, user_stack_area, intr_context) = if !is_kernel_task {
             let user_stack_top_address = USER_STACK_TOP_VIRT_ADDRESS - (USER_STACK_SIZE + MEMORY_PAGE_SIZE) * tid;
             let user_stack_bottom_address = user_stack_top_address - USER_STACK_SIZE;
             let user_stack_top_va = VirtAddr(user_stack_top_address);
@@ -68,7 +68,7 @@ impl TaskControlBlock {
             user_stack_map_area: user_stack_area,
         };
 
-        Self { tid: tid, process: Arc::downgrade(&process), inner: Arc::new(Mutex::new(task_inner)) }
+        Self { tid: tid, process: Arc::downgrade(&process), task_inner: Arc::new(Mutex::new(task_inner)) }
     }
 }
 
@@ -76,7 +76,7 @@ impl Drop for TaskControlBlock {
     fn drop(&mut self) {
         if let Some(process) = self.process.upgrade() {
             let mut process_inner = process.inner.lock();
-            let mut task_inner = self.inner.lock();
+            let mut task_inner = self.task_inner.lock();
             if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
                 map_area.unmap(&mut process_inner.memory_set.page_table)
             }

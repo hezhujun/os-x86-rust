@@ -1,6 +1,7 @@
 use core::option::Option::None;
 use core::option::Option::Some;
 use core::option::Option;
+use core::marker::Sized;
 use core::ops::FnOnce;
 use core::convert::From;
 use alloc::vec;
@@ -19,8 +20,8 @@ pub struct PageTable {
 
 impl PageTable {
     pub fn new(pdt_ppn: PhysPageNum, pdt_vpn: VirtPageNum) -> Self {
-        let mut ret = Self { pdt_ppn, pdt_vpn, frames: Vec::new() };
-        ret.map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
+        let ret = Self { pdt_ppn, pdt_vpn, frames: Vec::new() };
+        Self::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
         pdt_vpn.get_bytes_array().iter_mut().for_each(|b| *b = 0);
         ret.copy_kernel_space();
         ret
@@ -50,88 +51,222 @@ impl PageTable {
         }
     }
 
-    /// 映射 vpn 到 ppn
-    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
-        self.find_pte(vpn, true, |pte| {
-            assert_eq!(pte.flag().contains(PteFlags::P), false);
+    pub fn static_map(vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
+        let index2 = vpn.0 & 0x3ff;
+        let index1 = (vpn.0 >> 10)& 0x3ff;
+        let pde_array = Self::pdt_vpn().get_pde_array();
+        let pde = &mut pde_array[index1];
+        assert!(pde.flag().contains(PdeFlags::P));
+        let address = 0x3ffusize << 22 | index1 << 12;
+        let second_vpn: VirtPageNum = VirtAddr(address).into();
+        let pte_array = second_vpn.get_pte_array();
+        let pte = &mut pte_array[index2];
+        assert_eq!(pte.flag().contains(PteFlags::P), false);
+        let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), flag);
+        *pte = new_entry;
+    }
+
+    pub fn map(&self, vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
+        assert!(self.is_pde_present(vpn));
+        self.get_pte_mut(vpn, |pte| {
+            assert!(!pte.flag().contains(PteFlags::P), "vpn {:#x} exist pte address {:#x}", vpn.base_address().0, pte.address());
             let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), flag);
             *pte = new_entry;
         });
+        assert!(self.is_pte_present(vpn));
+        assert_eq!(ppn, self.get_ppn(vpn));
     }
 
-    /// 取消映射 vpn 到 ppn
-    pub fn unmap(&mut self, vpn: VirtPageNum) {
-        let ret = self.find_pte(vpn, false, |pte| {
-            assert!(pte.flag().contains(PteFlags::P));
+    pub fn map_with_create_pde(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
+        if self.is_pde_present(vpn) {
+            self.map(vpn, ppn, flag);
+        } else {
+            let frame = alloc_phys_frame(1).unwrap();
+            let frame_ppn = frame.base_ppn;
+            let mut pde_flags = PdeFlags::P | PdeFlags::RW;
+            if vpn.base_address().0 < HIGH_ADDRESS_BASE {
+                pde_flags |= PdeFlags::US;
+            }
+            let new_entry = PageDirectoryEntry::new(frame_ppn.base_address().0.try_into().unwrap(), pde_flags);
+            self.frames.push(frame);
+            self.tmp_map(frame_ppn, |vpn| {
+                let bytes_array = unsafe {
+                    core::slice::from_raw_parts_mut(vpn.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
+                };
+                bytes_array.iter_mut().for_each(|b| *b = 0);
+            });
+            self.get_pde_mut(vpn, | pde | {
+                *pde = new_entry;
+            });
+            self.map(vpn, ppn, flag);
+        }
+    }
+
+    pub fn unmap(&self, vpn: VirtPageNum) {
+        assert_ne!(vpn, self.pdt_vpn, "can not unmap pdt vpn");
+        assert!(self.is_pte_present(vpn));
+        self.get_pte_mut(vpn, |pte| {
             *pte = PageTableEntry::empty();
         });
-        assert!(ret);
+        self.get_pte_ref(vpn, |pte| {
+            assert!(!pte.flag().contains(PteFlags::P));
+        });
     }
 
-    pub fn tmp_map<F: FnOnce(VirtPageNum)>(&mut self, ppn: PhysPageNum, f: F) {
+    pub fn tmp_map<F: FnOnce(VirtPageNum)>(&self, ppn: PhysPageNum, f: F) {
         let virt_frame_stub = alloc_kernel_virt_frame(1).unwrap();
         self.map(virt_frame_stub.base_vpn, ppn, PteFlags::P | PteFlags::RW);
+        // attention!
+        // force refresh page table
         unsafe {
-            asm!("mov cr3, {}", in(reg) KERNEL_PDT_PHYS_ADDRESS);
+            asm!("mov cr3, {}", in(reg) Self::pdt_ppn().base_address().0);
         }
         f(virt_frame_stub.base_vpn);
         self.unmap(virt_frame_stub.base_vpn);
         unsafe {
-            asm!("mov cr3, {}", in(reg) KERNEL_PDT_PHYS_ADDRESS);
+            asm!("mov cr3, {}", in(reg) Self::pdt_ppn().base_address().0);
         }
     }
 
-    pub fn get_page_bytes_array<F: FnOnce(&mut [u8])>(&mut self, vpn: VirtPageNum, f: F) {
-        if self.pdt_ppn == Self::pdt_ppn() || vpn.base_address().0 >= HIGH_ADDRESS_BASE {
-            let bytes_array = vpn.get_bytes_array();
-            f(bytes_array);
-        } else {
-            let index2 = vpn.0 & 0x3ff;
-            let index1 = (vpn.0 >> 10)& 0x3ff;
-            let pde_array = self.pdt_vpn.get_pde_array();
-            let pde = &mut pde_array[index1];
-            assert!(pde.flag().contains(PdeFlags::P));
-
-            let page_pa = PhysAddr(pde.address().try_into().unwrap());
-            let page_ppn = page_pa.phys_page_num_floor();
-            self.tmp_map(page_ppn, |page_vpn| {
-                let bytes_array = page_vpn.get_bytes_array();
-                f(bytes_array);
-            });
-        }
+    pub fn get_pde_ref<F: FnOnce(&PageDirectoryEntry)>(&self, vpn: VirtPageNum, f: F) {
+        let index1 = (vpn.0 >> 10) & 0x3ff;
+        let pde_array = unsafe {
+            core::slice::from_raw_parts(self.pdt_vpn.base_address().0 as *const PageDirectoryEntry, PTE_SIZE_IN_PAGE)
+        };
+        f(&pde_array[index1]);
     }
 
-    fn find_pte<F: FnOnce(&mut PageTableEntry)>(&mut self, vpn: VirtPageNum, is_create_pde: bool, f: F) -> bool {
-        let index2 = vpn.0 & 0x3ff;
+    pub fn get_pde_mut<F: FnOnce(&mut PageDirectoryEntry)>(&self, vpn: VirtPageNum, f: F) {
         let index1 = (vpn.0 >> 10)& 0x3ff;
-        let pde_array = self.pdt_vpn.get_pde_array();
-        let pde = &mut pde_array[index1];
-        if !pde.flag().contains(PdeFlags::P) {
-            if is_create_pde {
-                let frame = alloc_phys_frame(1).unwrap();
-                let new_entry = PageDirectoryEntry::new(frame.base_ppn.base_address().0.try_into().unwrap(), PdeFlags::P | PdeFlags::RW);
-                self.frames.push(frame);
-                *pde = new_entry;
-            } else {
-                return false;
-            }
-        }
+        let pde_array = unsafe {
+            core::slice::from_raw_parts_mut(self.pdt_vpn.base_address().0 as *mut PageDirectoryEntry, PTE_SIZE_IN_PAGE)
+        };
+        f(&mut pde_array[index1]);
+    }
+
+    pub fn is_pde_present(&self, vpn: VirtPageNum) -> bool {
+        let mut is_present = false;
+        self.get_pde_ref(vpn, |pde| {
+            is_present = pde.flag().contains(PdeFlags::P);
+        });
+        is_present
+    }
+
+    pub fn get_pte_page_phys_address(&self, vpn: VirtPageNum) -> usize {
+        let mut address = 0;
+        self.get_pde_ref(vpn, |pde| {
+            address = pde.address() as usize;
+        });
+        address
+    }
+
+    pub fn get_pte_ref<F: FnOnce(&PageTableEntry)>(&self, vpn: VirtPageNum, f: F) {
+        assert!(self.is_pde_present(vpn));
+        let index2 = vpn.0 & 0x3ff;
+        let index1 = (vpn.0 >> 10) & 0x3ff;
+        
         if self.pdt_ppn == Self::pdt_ppn() || vpn.base_address().0 >= HIGH_ADDRESS_BASE {
             let address = 0x3ffusize << 22 | index1 << 12;
             let second_vpn: VirtPageNum = VirtAddr(address).into();
-            let pte_array = second_vpn.get_pte_array();
+            let pte_array = unsafe {
+                core::slice::from_raw_parts(second_vpn.base_address().0 as *const PageTableEntry, PTE_SIZE_IN_PAGE)
+            };
+            f(&pte_array[index2]);
+        } else {
+            let pte_page_pa = PhysAddr(self.get_pte_page_phys_address(vpn));
+            let pte_page_ppn = pte_page_pa.phys_page_num_floor();
+            self.tmp_map(pte_page_ppn, |page_vpn| {
+                let pte_array = unsafe {
+                    core::slice::from_raw_parts(page_vpn.base_address().0 as *const PageTableEntry, PTE_SIZE_IN_PAGE)
+                };
+                f(&pte_array[index2]);
+            });
+        }
+    }
+
+    pub fn get_pte_mut<F: FnOnce(&mut PageTableEntry)>(&self, vpn: VirtPageNum, f: F) {
+        assert!(self.is_pde_present(vpn));
+        let index2 = vpn.0 & 0x3ff;
+        let index1 = (vpn.0 >> 10) & 0x3ff;
+        
+        if self.pdt_ppn == Self::pdt_ppn() || vpn.base_address().0 >= HIGH_ADDRESS_BASE {
+            let address = 0x3ffusize << 22 | index1 << 12;
+            let second_vpn: VirtPageNum = VirtAddr(address).into();
+            let pte_array = unsafe {
+                core::slice::from_raw_parts_mut(second_vpn.base_address().0 as *mut PageTableEntry, PTE_SIZE_IN_PAGE)
+            };
             f(&mut pte_array[index2]);
         } else {
-            let page_pa = PhysAddr(pde.address().try_into().unwrap());
-            let page_ppn = page_pa.phys_page_num_floor();
-            self.tmp_map(page_ppn, |page_vpn| {
-                let pte_array = page_vpn.get_pte_array();
+            let pte_page_pa = PhysAddr(self.get_pte_page_phys_address(vpn));
+            let pte_page_ppn = pte_page_pa.phys_page_num_floor();
+            self.tmp_map(pte_page_ppn, |page_vpn| {
+                let pte_array = unsafe {
+                    core::slice::from_raw_parts_mut(page_vpn.base_address().0 as *mut PageTableEntry, PTE_SIZE_IN_PAGE)
+                };
                 f(&mut pte_array[index2]);
             });
         }
-        true
+    }
+
+    pub fn is_pte_present(&self, vpn: VirtPageNum) -> bool {
+        assert!(self.is_pde_present(vpn));
+        let mut is_present = false;
+        self.get_pte_ref(vpn, |pte| {
+            is_present = pte.flag().contains(PteFlags::P);
+        });
+        is_present
+    }
+
+    pub fn get_ppn(&self, vpn: VirtPageNum) -> PhysPageNum {
+        assert!(self.is_pte_present(vpn));
+        let mut phys_address = 0;
+        self.get_pte_ref(vpn, |pte| {
+            phys_address = pte.address() as usize;
+        });
+        PhysAddr(phys_address).into()
+    }
+
+    pub fn get_ref<T: Sized, F: for<'a> FnOnce(&'a T) -> ()>(&self, vpn: VirtPageNum, offset: usize, f: F) {
+        if offset + core::mem::size_of::<T>() > MEMORY_PAGE_SIZE {
+            return;
+        }
+        assert!(self.is_pte_present(vpn));
+        if self.pdt_ppn == Self::pdt_ppn() || vpn.base_address().0 >= HIGH_ADDRESS_BASE {
+            let address = vpn.base_address().0 + offset;
+            let value = unsafe { (address as *const T).as_ref() }.unwrap();
+            f(value);
+        } else {
+            let ppn = self.get_ppn(vpn);
+            self.tmp_map(ppn, |vpn| {
+                let address = vpn.base_address().0 + offset;
+                let value = unsafe { (address as *const T).as_ref() }.unwrap();
+                f(value);
+            })
+        }
+    }
+
+    pub fn get_mut<T: Sized, F: for<'a> FnOnce(&'a mut T) -> ()>(&self, vpn: VirtPageNum, offset: usize, f: F) {
+        if offset + core::mem::size_of::<T>() > MEMORY_PAGE_SIZE {
+            return;
+        }
+        assert!(self.is_pte_present(vpn));
+        if self.pdt_ppn == Self::pdt_ppn() || vpn.base_address().0 >= HIGH_ADDRESS_BASE {
+            let address = vpn.base_address().0 + offset;
+            let value = unsafe { (address as *mut T).as_mut() }.unwrap();
+            f(value);
+        } else {
+            let ppn = self.get_ppn(vpn);
+            self.tmp_map(ppn, |vpn| {
+                let address = vpn.base_address().0 + offset;
+                let value = unsafe { (address as *mut T).as_mut() }.unwrap();
+                f(value);
+            })
+        }
+        assert!(self.is_pde_present(vpn));
+        assert!(self.is_pte_present(vpn));
     }
 }
+
 
 impl VirtPageNum {
     pub fn get_pde_array(&self) -> &'static mut [PageDirectoryEntry] {

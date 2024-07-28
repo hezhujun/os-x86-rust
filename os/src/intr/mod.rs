@@ -54,7 +54,8 @@ pub extern "C" fn intr_handler(intr_context: IntrContext) {
     let cs = intr_context.cs;
     // debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs);
     assert!((intr >> 8) == 0);
-    INTR_HANDLER_TABLE.lock()[intr](intr_context);
+    let handler = INTR_HANDLER_TABLE.lock()[intr];
+    handler(intr_context);
 }
 
 extern "C" {

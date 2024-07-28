@@ -38,6 +38,8 @@ pub const FREE_KERNEL_VIRT_FRAME_END_ADDRESS: usize = 0xffc00000;
 // page directory table 虚拟地址
 pub const PDT_VIRT_ADDRESS: usize = 0xfffff000;
 
+pub const KERNEL_ORIGIN_STACK_TOP_VIRT_ADDRESS: usize = 0xc0090000;
+
 pub const THREAD_KERNEL_STACK_SIZE: usize = 0x10000;
 pub const THREAD_USER_STACK_SIZE: usize = 0x10000;
 
@@ -64,4 +66,4 @@ pub const CODE_SELECTOR: u16 = (1u16 << 3) | ((TI_GDT as u16) << 2) | RPL0 as u1
 pub const DATA_SELECTOR: u16 = (2u16 << 3) | ((TI_GDT as u16) << 2) | RPL0 as u16;
 pub const USER_CODE_SELECTOR: u16 = (3u16 << 3) | ((TI_GDT as u16) << 2) | RPL3 as u16;
 pub const USER_DATA_SELECTOR: u16 = (4u16 << 3) | ((TI_GDT as u16) << 2) | RPL3 as u16;
-pub const TSS_SELECTOR: u16 = (5u16 << 3) | ((TI_GDT as u16) << 2) | RPL3 as u16;
+pub const TSS_SELECTOR: u16 = (5u16 << 3) | ((TI_GDT as u16) << 2) | RPL0 as u16;

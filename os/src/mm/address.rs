@@ -39,9 +39,9 @@ impl VirtAddr {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PhysPageNum(pub usize);
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VirtPageNum(pub usize);
 
 impl From<PhysAddr> for PhysPageNum {
@@ -79,6 +79,12 @@ impl PhysPageNum {
 
 impl VirtPageNum {
     pub fn get_bytes_array(&self) -> &'static mut [u8] {
+        unsafe {
+            core::slice::from_raw_parts_mut(self.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
+        }
+    }
+
+    pub fn gte_bytes_mut(&self) -> &'static mut [u8] {
         unsafe {
             core::slice::from_raw_parts_mut(self.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
         }

@@ -52,10 +52,9 @@ pub fn main() -> ! {
     intr::init();
     syscall::init();
     schedule::init();
-
     timer::init();
     schedule::test();
-    intr::begin_intr();
+    // intr::begin_intr();
     schedule::run_tasks();
     loop {}
 }

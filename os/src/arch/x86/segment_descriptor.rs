@@ -12,7 +12,7 @@ bitflags! {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SegmentDescriptor([u32;2]);
 
 impl SegmentDescriptor {

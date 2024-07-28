@@ -52,11 +52,91 @@ extern "C" {
     pub fn intr_entry_0x2e();
     pub fn intr_entry_0x2f();
     pub fn intr_entry_0x30();
-
+    pub fn intr_entry_0x31();
+    pub fn intr_entry_0x32();
+    pub fn intr_entry_0x33();
+    pub fn intr_entry_0x34();
+    pub fn intr_entry_0x35();
+    pub fn intr_entry_0x36();
+    pub fn intr_entry_0x37();
+    pub fn intr_entry_0x38();
+    pub fn intr_entry_0x39();
+    pub fn intr_entry_0x3a();
+    pub fn intr_entry_0x3b();
+    pub fn intr_entry_0x3c();
+    pub fn intr_entry_0x3d();
+    pub fn intr_entry_0x3e();
+    pub fn intr_entry_0x3f();
+    pub fn intr_entry_0x40();
+    pub fn intr_entry_0x41();
+    pub fn intr_entry_0x42();
+    pub fn intr_entry_0x43();
+    pub fn intr_entry_0x44();
+    pub fn intr_entry_0x45();
+    pub fn intr_entry_0x46();
+    pub fn intr_entry_0x47();
+    pub fn intr_entry_0x48();
+    pub fn intr_entry_0x49();
+    pub fn intr_entry_0x4a();
+    pub fn intr_entry_0x4b();
+    pub fn intr_entry_0x4c();
+    pub fn intr_entry_0x4d();
+    pub fn intr_entry_0x4e();
+    pub fn intr_entry_0x4f();
+    pub fn intr_entry_0x50();
+    pub fn intr_entry_0x51();
+    pub fn intr_entry_0x52();
+    pub fn intr_entry_0x53();
+    pub fn intr_entry_0x54();
+    pub fn intr_entry_0x55();
+    pub fn intr_entry_0x56();
+    pub fn intr_entry_0x57();
+    pub fn intr_entry_0x58();
+    pub fn intr_entry_0x59();
+    pub fn intr_entry_0x5a();
+    pub fn intr_entry_0x5b();
+    pub fn intr_entry_0x5c();
+    pub fn intr_entry_0x5d();
+    pub fn intr_entry_0x5e();
+    pub fn intr_entry_0x5f();
+    pub fn intr_entry_0x60();
+    pub fn intr_entry_0x61();
+    pub fn intr_entry_0x62();
+    pub fn intr_entry_0x63();
+    pub fn intr_entry_0x64();
+    pub fn intr_entry_0x65();
+    pub fn intr_entry_0x66();
+    pub fn intr_entry_0x67();
+    pub fn intr_entry_0x68();
+    pub fn intr_entry_0x69();
+    pub fn intr_entry_0x6a();
+    pub fn intr_entry_0x6b();
+    pub fn intr_entry_0x6c();
+    pub fn intr_entry_0x6d();
+    pub fn intr_entry_0x6e();
+    pub fn intr_entry_0x6f();
+    pub fn intr_entry_0x70();
+    pub fn intr_entry_0x71();
+    pub fn intr_entry_0x72();
+    pub fn intr_entry_0x73();
+    pub fn intr_entry_0x74();
+    pub fn intr_entry_0x75();
+    pub fn intr_entry_0x76();
+    pub fn intr_entry_0x77();
+    pub fn intr_entry_0x78();
+    pub fn intr_entry_0x79();
+    pub fn intr_entry_0x7a();
+    pub fn intr_entry_0x7b();
+    pub fn intr_entry_0x7c();
+    pub fn intr_entry_0x7d();
+    pub fn intr_entry_0x7e();
+    pub fn intr_entry_0x7f();
+    pub fn intr_entry_0x80();
+    pub fn intr_entry_0x81();
 }
 
 lazy_static! {
-    static ref IDT_HANDLER_ADDRESS_LIST: [u32; 0x31] = {
+    static ref IDT_HANDLER_ADDRESS_LIST: [u32; 0x82] = {
         [
             (intr_entry_0x00 as usize).try_into().unwrap(),
             (intr_entry_0x01 as usize).try_into().unwrap(),
@@ -105,8 +185,87 @@ lazy_static! {
             (intr_entry_0x2c as usize).try_into().unwrap(),
             (intr_entry_0x2d as usize).try_into().unwrap(),
             (intr_entry_0x2e as usize).try_into().unwrap(),
-            (intr_entry_0x2f as usize).try_into().unwrap(),
-            (intr_entry_0x30 as usize).try_into().unwrap(),
+            (intr_entry_0x2f as usize).try_into().unwrap(),(intr_entry_0x30 as usize).try_into().unwrap(),
+            (intr_entry_0x31 as usize).try_into().unwrap(),
+            (intr_entry_0x32 as usize).try_into().unwrap(),
+            (intr_entry_0x33 as usize).try_into().unwrap(),
+            (intr_entry_0x34 as usize).try_into().unwrap(),
+            (intr_entry_0x35 as usize).try_into().unwrap(),
+            (intr_entry_0x36 as usize).try_into().unwrap(),
+            (intr_entry_0x37 as usize).try_into().unwrap(),
+            (intr_entry_0x38 as usize).try_into().unwrap(),
+            (intr_entry_0x39 as usize).try_into().unwrap(),
+            (intr_entry_0x3a as usize).try_into().unwrap(),
+            (intr_entry_0x3b as usize).try_into().unwrap(),
+            (intr_entry_0x3c as usize).try_into().unwrap(),
+            (intr_entry_0x3d as usize).try_into().unwrap(),
+            (intr_entry_0x3e as usize).try_into().unwrap(),
+            (intr_entry_0x3f as usize).try_into().unwrap(),
+            (intr_entry_0x40 as usize).try_into().unwrap(),
+            (intr_entry_0x41 as usize).try_into().unwrap(),
+            (intr_entry_0x42 as usize).try_into().unwrap(),
+            (intr_entry_0x43 as usize).try_into().unwrap(),
+            (intr_entry_0x44 as usize).try_into().unwrap(),
+            (intr_entry_0x45 as usize).try_into().unwrap(),
+            (intr_entry_0x46 as usize).try_into().unwrap(),
+            (intr_entry_0x47 as usize).try_into().unwrap(),
+            (intr_entry_0x48 as usize).try_into().unwrap(),
+            (intr_entry_0x49 as usize).try_into().unwrap(),
+            (intr_entry_0x4a as usize).try_into().unwrap(),
+            (intr_entry_0x4b as usize).try_into().unwrap(),
+            (intr_entry_0x4c as usize).try_into().unwrap(),
+            (intr_entry_0x4d as usize).try_into().unwrap(),
+            (intr_entry_0x4e as usize).try_into().unwrap(),
+            (intr_entry_0x4f as usize).try_into().unwrap(),
+            (intr_entry_0x50 as usize).try_into().unwrap(),
+            (intr_entry_0x51 as usize).try_into().unwrap(),
+            (intr_entry_0x52 as usize).try_into().unwrap(),
+            (intr_entry_0x53 as usize).try_into().unwrap(),
+            (intr_entry_0x54 as usize).try_into().unwrap(),
+            (intr_entry_0x55 as usize).try_into().unwrap(),
+            (intr_entry_0x56 as usize).try_into().unwrap(),
+            (intr_entry_0x57 as usize).try_into().unwrap(),
+            (intr_entry_0x58 as usize).try_into().unwrap(),
+            (intr_entry_0x59 as usize).try_into().unwrap(),
+            (intr_entry_0x5a as usize).try_into().unwrap(),
+            (intr_entry_0x5b as usize).try_into().unwrap(),
+            (intr_entry_0x5c as usize).try_into().unwrap(),
+            (intr_entry_0x5d as usize).try_into().unwrap(),
+            (intr_entry_0x5e as usize).try_into().unwrap(),
+            (intr_entry_0x5f as usize).try_into().unwrap(),
+            (intr_entry_0x60 as usize).try_into().unwrap(),
+            (intr_entry_0x61 as usize).try_into().unwrap(),
+            (intr_entry_0x62 as usize).try_into().unwrap(),
+            (intr_entry_0x63 as usize).try_into().unwrap(),
+            (intr_entry_0x64 as usize).try_into().unwrap(),
+            (intr_entry_0x65 as usize).try_into().unwrap(),
+            (intr_entry_0x66 as usize).try_into().unwrap(),
+            (intr_entry_0x67 as usize).try_into().unwrap(),
+            (intr_entry_0x68 as usize).try_into().unwrap(),
+            (intr_entry_0x69 as usize).try_into().unwrap(),
+            (intr_entry_0x6a as usize).try_into().unwrap(),
+            (intr_entry_0x6b as usize).try_into().unwrap(),
+            (intr_entry_0x6c as usize).try_into().unwrap(),
+            (intr_entry_0x6d as usize).try_into().unwrap(),
+            (intr_entry_0x6e as usize).try_into().unwrap(),
+            (intr_entry_0x6f as usize).try_into().unwrap(),(intr_entry_0x70 as usize).try_into().unwrap(),
+            (intr_entry_0x71 as usize).try_into().unwrap(),
+            (intr_entry_0x72 as usize).try_into().unwrap(),
+            (intr_entry_0x73 as usize).try_into().unwrap(),
+            (intr_entry_0x74 as usize).try_into().unwrap(),
+            (intr_entry_0x75 as usize).try_into().unwrap(),
+            (intr_entry_0x76 as usize).try_into().unwrap(),
+            (intr_entry_0x77 as usize).try_into().unwrap(),
+            (intr_entry_0x78 as usize).try_into().unwrap(),
+            (intr_entry_0x79 as usize).try_into().unwrap(),
+            (intr_entry_0x7a as usize).try_into().unwrap(),
+            (intr_entry_0x7b as usize).try_into().unwrap(),
+            (intr_entry_0x7c as usize).try_into().unwrap(),
+            (intr_entry_0x7d as usize).try_into().unwrap(),
+            (intr_entry_0x7e as usize).try_into().unwrap(),
+            (intr_entry_0x7f as usize).try_into().unwrap(),
+            (intr_entry_0x80 as usize).try_into().unwrap(),
+            (intr_entry_0x81 as usize).try_into().unwrap()
         ]
     };
 }
@@ -185,13 +344,13 @@ fn init_ldt_entry(gate: &mut GateDescriptor, idx: usize) {
         return
     }
 
-    let address: u32 = (IDT_HANDLER_ADDRESS_LIST[idx] as usize).try_into().unwrap();
-    let mut _gate = GateDescriptor::new(CODE_SELECTOR, address, true, 0, INTR_GATE_ATTR);
+    let address: u32 = IDT_HANDLER_ADDRESS_LIST[idx];
+    let mut _gate = GateDescriptor::new(CODE_SELECTOR, address, true, 0b11, INTR_GATE_ATTR);
     *gate = _gate;
     assert_eq!(CODE_SELECTOR, gate.get_selector());
     assert_eq!(address, gate.get_address());
     assert_eq!(true, gate.is_present());
-    assert_eq!(0, gate.get_DPL());
+    assert_eq!(0b11, gate.get_DPL());
     assert_eq!(INTR_GATE_ATTR, gate.get_attr());
 }
 
