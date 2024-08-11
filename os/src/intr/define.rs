@@ -345,21 +345,20 @@ fn init_ldt_entry(gate: &mut GateDescriptor, idx: usize) {
     }
 
     let address: u32 = IDT_HANDLER_ADDRESS_LIST[idx];
-    let mut _gate = GateDescriptor::new(CODE_SELECTOR, address, true, 0b11, INTR_GATE_ATTR);
+    let mut _gate = GateDescriptor::new(CODE_SELECTOR, address, true, 0b00, INTR_GATE_ATTR);
     *gate = _gate;
     assert_eq!(CODE_SELECTOR, gate.get_selector());
     assert_eq!(address, gate.get_address());
     assert_eq!(true, gate.is_present());
-    assert_eq!(0b11, gate.get_DPL());
+    assert_eq!(0b00, gate.get_DPL());
     assert_eq!(INTR_GATE_ATTR, gate.get_attr());
 }
 
+extern "C" {
+    fn intr_table();
+}
 
 pub fn init() {
-    extern "C" {
-        fn intr_table();
-    }
-
     let idt_table = unsafe {
         core::slice::from_raw_parts_mut(intr_table as usize as *mut GateDescriptor, IDT_MAX_LEN)
     };
@@ -367,4 +366,12 @@ pub fn init() {
     for idx in 0..IDT_MAX_LEN {
         init_ldt_entry(&mut idt_table[idx], idx);
     }
+}
+
+pub fn set_ldt_entry(idx: usize, dpl: usize) {
+    assert!(idx < IDT_MAX_LEN);
+    let idt_table = unsafe {
+        core::slice::from_raw_parts_mut(intr_table as usize as *mut GateDescriptor, IDT_MAX_LEN)
+    };
+    idt_table[idx].set_DPL((dpl & 0b11).try_into().unwrap());
 }

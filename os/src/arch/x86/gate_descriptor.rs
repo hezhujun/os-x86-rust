@@ -51,6 +51,11 @@ impl GateDescriptor {
         self.0[1] & (1 << 15) != 0
     }
 
+    pub fn set_DPL(&mut self, dpl: u8) {
+        self.0[1] &= !(0b11 << 13);
+        self.0[1] |= (dpl as u32 & 0b11) << 13;
+    }
+
     pub fn get_DPL(&self) -> u8 {
         ((self.0[1] >> 13) & 0b11).try_into().unwrap()
     }

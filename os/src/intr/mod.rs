@@ -23,6 +23,10 @@ lazy_static! {
     pub static ref INTR_HANDLER_TABLE: Arc<Mutex<[IntrHandlerFn; IDT_MAX_LEN]>> = Arc::new(Mutex::new([default_intr_handler; IDT_MAX_LEN]));
 }
 
+pub fn set_ldt_entry(idx: usize, dpl: usize) {
+    define::set_ldt_entry(idx, dpl);
+}
+
 pub fn init() {
     extern "C" {
         fn intr_table();
