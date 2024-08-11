@@ -6,8 +6,10 @@ use crate::config::MEMORY_PAGE_SIZE;
 
 #[derive(Clone, Copy)]
 pub struct PhysAddr(pub usize);
+pub type PA = PhysAddr;
 #[derive(Clone, Copy)]
 pub struct VirtAddr(pub usize);
+pub type VA = VirtAddr;
 
 impl PhysAddr {
     pub fn phys_page_num_floor(&self) -> PhysPageNum {
@@ -41,8 +43,10 @@ impl VirtAddr {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PhysPageNum(pub usize);
+pub type PPN = PhysPageNum;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VirtPageNum(pub usize);
+pub type VPN = VirtPageNum;
 
 impl From<PhysAddr> for PhysPageNum {
     fn from(value: PhysAddr) -> Self {
@@ -99,10 +103,20 @@ impl VirtAddr {
     }
 }
 
-pub type VPNRange = Range<VirtPageNum>;
+pub type VirtPageNumRange = Range<VirtPageNum>;
+pub type VPNRange = VirtPageNumRange;
 
-impl From<VirtPageNum> for VPNRange {
+impl From<VirtPageNum> for VirtPageNumRange {
     fn from(value: VirtPageNum) -> Self {
         value..VirtPageNum(value.0 + 1)
+    }
+}
+
+pub type PhysPageNumRange = Range<PhysPageNum>;
+pub type PPNRange = PhysPageNumRange;
+
+impl From<PhysPageNum> for PhysPageNumRange {
+    fn from(value: PhysPageNum) -> Self {
+        value..PhysPageNum(value.0 + 1)
     }
 }
