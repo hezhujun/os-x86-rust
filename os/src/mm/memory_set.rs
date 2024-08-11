@@ -36,15 +36,15 @@ impl From<MapPermission> for PteFlags {
 }
 
 pub struct MapArea {
-    vpn_range: VPNRange,
+    pub vpn_range: VPNRange,
+    pub map_perm: MapPermission,
     vpn_stub: Option<VirtFrameStub>,
     data_frames: BTreeMap<VirtPageNum, PhysFrameStub>,
-    map_perm: MapPermission,
 }
 
 impl MapArea {
     pub fn new(vpn_range: VPNRange, vpn_stub: Option<VirtFrameStub>, map_perm: MapPermission) -> Self {
-        Self { vpn_range, vpn_stub, data_frames: BTreeMap::new(), map_perm }
+        Self { vpn_range, map_perm, vpn_stub, data_frames: BTreeMap::new()}
     }
 
     /// 映射 vpn 到 ppn，并清理 vpn 页内容
@@ -98,12 +98,21 @@ impl MapArea {
     }
 }
 
+pub struct ProgramHeader {
+    virtual_addr: usize,
+    mem_size: usize,
+    file_offset: usize,
+    file_size: usize,
+    flags: xmas_elf::program::Flags,
+}
+
 pub struct MemorySet {
     pdt_pstub: PhysFrameStub,
     pdt_vstub: VirtFrameStub,
     pub page_table: PageTable,
     areas: Vec<MapArea>,
     user_stack_base: usize,
+    program_headers: Option<Vec<ProgramHeader>>,
 }
 
 impl Drop for MemorySet {
@@ -121,7 +130,7 @@ impl MemorySet {
         let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
         let pdt_vpn = pdt_vstub.base_vpn;
         let page_table = PageTable::new(pdt_ppn, pdt_vpn);
-        MemorySet { pdt_pstub, pdt_vstub, page_table, areas: Vec::new(), user_stack_base: 0 }
+        MemorySet { pdt_pstub, pdt_vstub, page_table, areas: Vec::new(), user_stack_base: 0, program_headers: None }
     }
 
     /// return MemorySet and entry point
@@ -133,9 +142,8 @@ impl MemorySet {
         let pdt_vpn = pdt_vstub.base_vpn;
         let page_table = PageTable::new(pdt_ppn, pdt_vpn);
 
-        let mut memory_set = MemorySet { pdt_pstub, pdt_vstub, page_table, areas: Vec::new(), user_stack_base: 0 };
-
-        // map program headers of elf, with U flag
+        // program headers of elf, with U flag
+        let mut program_headers = Vec::new();
         let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
         let elf_header = elf.header;
         let magic = elf_header.pt1.magic;
@@ -145,32 +153,66 @@ impl MemorySet {
         for i in 0..ph_count {
             let ph = elf.program_header(i).unwrap();
             if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
-                let start_va = VirtAddr(ph.virtual_addr() as usize);
+                let program_header = ProgramHeader {
+                    virtual_addr: ph.virtual_addr() as usize,
+                    mem_size: ph.mem_size() as usize,
+                    file_offset: ph.offset() as usize,
+                    file_size: ph.file_size() as usize,
+                    flags: ph.flags(),
+                };
+                program_headers.push(program_header);
                 let end_va = VirtAddr((ph.virtual_addr() + ph.mem_size()) as usize);
-                let mut map_perm = MapPermission::U;
-                let ph_flags = ph.flags();
-                if ph_flags.is_read() { map_perm |= MapPermission::R; }
-                if ph_flags.is_write() { map_perm |= MapPermission::W; }
-                if ph_flags.is_execute() { map_perm |= MapPermission::X; }
-                let map_area = MapArea::new(
-                    start_va.virt_page_num_floor()..end_va.virt_page_num_ceil(),
-                    None,
-                    map_perm
-                );
-                max_end_vpn = map_area.vpn_range.end;
-                memory_set.push(
-                    map_area,
-                    Some(&elf.input[ph.offset() as usize..(ph.offset() + ph.file_size()) as usize])
-                );
+                max_end_vpn = end_va.virt_page_num_ceil();
             }
         }
-        // map user stack with U flags
         let max_end_va: VirtAddr = max_end_vpn.base_address();
         let mut user_stack_base: usize = max_end_va.0;
         // guard page
         user_stack_base += MEMORY_PAGE_SIZE;
-        memory_set.user_stack_base = user_stack_base;
+
+        let areas = Self::generate_map_area(&program_headers);
+        let memory_set = MemorySet { pdt_pstub, pdt_vstub, page_table, areas, user_stack_base: user_stack_base, program_headers: Some(program_headers) };
+
         (memory_set, elf.header.pt2.entry_point() as usize)
+    }
+
+    fn generate_map_area(program_headers: &Vec<ProgramHeader>) -> Vec<MapArea> {
+        let mut areas: Vec<MapArea> = Vec::new();
+        // asume program_headers are sorted
+        for ph in program_headers {
+            let start_va = VirtAddr(ph.virtual_addr);
+            let end_va = VirtAddr(ph.virtual_addr + ph.mem_size);
+            let mut start_vpn = start_va.virt_page_num_floor();
+            let end_vpn = end_va.virt_page_num_floor();
+            let mut map_perm = MapPermission::U;
+            if ph.flags.is_read() {
+                map_perm |= MapPermission::R;
+            }
+            if ph.flags.is_write() {
+                map_perm |= MapPermission::W;
+            }
+            if ph.flags.is_execute() {
+                map_perm |= MapPermission::X;
+            }
+            let area = if let Some(mut area) = areas.pop() {
+                if area.vpn_range.end > start_vpn {
+                    area.map_perm.union(map_perm);
+                    start_vpn = area.vpn_range.end;
+                    if start_vpn < end_vpn {
+                        areas.push(area);
+                        MapArea::new(start_vpn..end_vpn, None, map_perm)
+                    } else {
+                        area
+                    }
+                } else {
+                    MapArea::new(start_vpn..end_vpn, None, map_perm)
+                }
+            } else {
+                MapArea::new(start_vpn..end_vpn, None, map_perm)
+            };
+            areas.push(area);
+        }
+        areas
     }
 
     pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
@@ -192,6 +234,6 @@ lazy_static! {
         PageTable::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
         let page_table = PageTable::from_exists(pdt_ppn, pdt_vpn);
         // 内核的 user_stack_base 没有作用
-        Arc::new(Mutex::new(MemorySet { pdt_pstub, pdt_vstub, page_table, areas: Vec::new(), user_stack_base: 0 }))
+        Arc::new(Mutex::new(MemorySet {pdt_pstub,pdt_vstub,page_table,areas:Vec::new(),user_stack_base:0, program_headers: None }))
     };
 }

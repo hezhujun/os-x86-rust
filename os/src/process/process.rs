@@ -29,6 +29,19 @@ pub struct ProcessControlBlock {
 }
 
 impl ProcessControlBlock {
+    pub fn from_elf_file(elf_data: &[u8]) -> Arc<Self> {
+        // 1. alloc pid
+        let pid_stub = alloc_process_id().unwrap();
+        // 2. alloc memory space
+        let (memory_set, entry_point) = MemorySet::from_elf(elf_data);
+        let inner = ProcessControlBlockInner::new(memory_set);
+        let process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
+        let process = Arc::new(process);
+        let task = TaskControlBlock::new(process.clone(), entry_point, false);
+        process.add_task(Arc::new(task));
+        process
+    }
+
     pub fn new(elf_data: &[u8]) -> Arc<Self> {
         let pid_stub = alloc_process_id().unwrap();
         let (memory_set, entry_point) = MemorySet::from_elf(elf_data);

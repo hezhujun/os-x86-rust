@@ -120,3 +120,25 @@ impl From<PhysPageNum> for PhysPageNumRange {
         value..PhysPageNum(value.0 + 1)
     }
 }
+
+impl Step for VirtPageNum {
+    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+        if end.0 > start.0 {
+            Some(end.0 - start.0)
+        } else {
+            None
+        }
+    }
+
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        Some(VirtPageNum(start.0 + count))
+    }
+
+    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+        if start.0 >= count {
+            Some(VirtPageNum(start.0 - count))
+        } else {
+            None
+        }
+    }
+}

@@ -2,8 +2,10 @@
 #![no_main]
 #![feature(panic_info_message)]
 #![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
 #![feature(alloc_error_handler)]
+#![feature(step_trait)]
+
+#![feature(generic_const_exprs)]
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_comparisons)]

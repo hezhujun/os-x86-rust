@@ -4,6 +4,7 @@ use core::option::Option::None;
 use core::mem::drop;
 use alloc::{sync::Arc, task, vec::Vec};
 use manager::{add_task, fetch_task};
+use processor::current_task;
 use processor::{schedule, take_current_task};
 use switch::__switch;
 
@@ -27,6 +28,21 @@ pub fn suspend_current_and_run_next() {
         add_task(task);
         schedule(task_cx_ptr);
     }
+}
+
+
+pub fn handle_page_fault() {
+    if let Some(task) = current_task() {
+        if let Some(process) = task.process.upgrade() {
+            // check user space memory
+            let task_inner = task.task_inner.lock();
+            if let Some(ustack_area) = task_inner.user_stack_map_area.as_ref() {
+                
+            }
+            return
+        }
+    }
+    panic!("no task");
 }
 
 pub fn init() {
