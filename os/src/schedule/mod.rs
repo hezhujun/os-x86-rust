@@ -34,15 +34,23 @@ pub fn suspend_current_and_run_next() {
 pub fn handle_page_fault() {
     if let Some(task) = current_task() {
         if let Some(process) = task.process.upgrade() {
-            // check user space memory
-            let task_inner = task.task_inner.lock();
-            if let Some(ustack_area) = task_inner.user_stack_map_area.as_ref() {
-                
+            let mut process_inner = process.inner.lock();
+            let memory_set = &process_inner.memory_set;
+            let page_table = &memory_set.page_table;
+            let mut is_mapped = false;
+            if let Some(map_area) = memory_set.areas.first() {
+                let start_vpn = map_area.vpn_range.start;
+                is_mapped = page_table.is_vpn_present(start_vpn);
             }
+
+            if !is_mapped {
+                process_inner.map_all_areas_and_load_data();
+            }
+
             return
         }
     }
-    panic!("no task");
+    panic!("no process");
 }
 
 pub fn init() {
@@ -79,29 +87,32 @@ pub fn test() {
         fn app_2_end();
     }
 
-    let app_0_data = unsafe {
+    let app_0_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_0_start as usize as *const u8, app_0_end as usize - app_0_start as usize)
     };
-    let app_1_data = unsafe {
+    let app_1_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_1_start as usize as *const u8, app_1_end as usize - app_1_start as usize)
     };
-    let app_2_data = unsafe {
+    let app_2_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_2_start as usize as *const u8, app_2_end as usize - app_2_start as usize)
     };
 
-    let process0 = ProcessControlBlock::new(app_0_data);
+    let process0 = ProcessControlBlock::from_elf_file(app_0_data);
     let task0 = {
-        let inner = process0.inner.lock();
+        let mut inner = process0.inner.lock();
+        inner.elf_data = Some(app_0_data);
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
-    let process1 = ProcessControlBlock::new(app_1_data);
+    let process1 = ProcessControlBlock::from_elf_file(app_1_data);
     let task1 = {
-        let inner = process1.inner.lock();
+        let mut inner = process1.inner.lock();
+        inner.elf_data = Some(app_1_data);
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
-    let process2 = ProcessControlBlock::new(app_2_data);
+    let process2 = ProcessControlBlock::from_elf_file(app_2_data);
     let task2 = {
-        let inner = process2.inner.lock();
+        let mut inner = process2.inner.lock();
+        inner.elf_data = Some(app_2_data);
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
 

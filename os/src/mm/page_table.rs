@@ -113,6 +113,13 @@ impl PageTable {
         });
     }
 
+    pub fn set_pte_flag(&self, vpn: VirtPageNum, flag: PteFlags) {
+        assert!(self.is_pte_present(vpn));
+        self.get_pte_mut(vpn, |pte| {
+            pte.set_flag(flag);
+        });
+    }
+
     pub fn tmp_map<F: FnOnce(VirtPageNum)>(&self, ppn: PhysPageNum, f: F) {
         let virt_frame_stub = alloc_kernel_virt_frame(1).unwrap();
         self.map(virt_frame_stub.base_vpn, ppn, PteFlags::P | PteFlags::RW);
@@ -264,6 +271,13 @@ impl PageTable {
         }
         assert!(self.is_pde_present(vpn));
         assert!(self.is_pte_present(vpn));
+    }
+
+    pub fn is_vpn_present(&self, vpn: VPN) -> bool {
+        if !self.is_pde_present(vpn) {
+            return false;
+        }
+        self.is_pte_present(vpn)
     }
 }
 

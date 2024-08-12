@@ -61,6 +61,12 @@ impl MapArea {
         }
     }
 
+    pub fn change_perm(&self, map_perm: MapPermission, page_table: &PageTable) {
+        for vpn in self.vpn_range.clone() {
+            page_table.set_pte_flag(vpn, map_perm.into());
+        }
+    }
+
     fn map_once(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let frame = alloc_phys_frame(1).unwrap();
         let ppn: PhysPageNum = frame.base_ppn;
@@ -99,20 +105,20 @@ impl MapArea {
 }
 
 pub struct ProgramHeader {
-    virtual_addr: usize,
-    mem_size: usize,
-    file_offset: usize,
-    file_size: usize,
-    flags: xmas_elf::program::Flags,
+    pub virtual_addr: usize,
+    pub mem_size: usize,
+    pub file_offset: usize,
+    pub file_size: usize,
+    pub flags: xmas_elf::program::Flags,
 }
 
 pub struct MemorySet {
     pdt_pstub: PhysFrameStub,
     pdt_vstub: VirtFrameStub,
     pub page_table: PageTable,
-    areas: Vec<MapArea>,
+    pub areas: Vec<MapArea>,
     user_stack_base: usize,
-    program_headers: Option<Vec<ProgramHeader>>,
+    pub program_headers: Option<Vec<ProgramHeader>>,
 }
 
 impl Drop for MemorySet {

@@ -5,6 +5,7 @@ use spin::Mutex;
 
 use crate::mm::alloc_kernel_virt_frame;
 use crate::mm::memory_set;
+use crate::mm::MapPermission;
 use crate::mm::MemorySet;
 use crate::config::*;
 use crate::utils::*;
@@ -15,11 +16,39 @@ pub struct ProcessControlBlockInner {
     pub memory_set: MemorySet,
     pub tid_allocator: ThreadIdAllocator,
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
+    pub elf_data: Option<&'static [u8]>,
 }
 
 impl ProcessControlBlockInner {
     pub fn new(memory_set: MemorySet) -> Self {
-        Self { memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new() }
+        Self { memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), elf_data: None }
+    }
+
+    pub fn map_all_areas_and_load_data(&mut self) {
+        for area in &mut self.memory_set.areas {
+            area.map(&mut self.memory_set.page_table);
+        }
+        if let Some(elf_data) = self.elf_data.as_ref() {
+            for area in &self.memory_set.areas {
+                if !area.map_perm.contains(MapPermission::W) {
+                    area.change_perm(area.map_perm | MapPermission::W, &self.memory_set.page_table);
+                }
+            }
+            if let Some(phs) = self.memory_set.program_headers.as_ref() {
+                for ph in phs {
+                    let src = &elf_data[ph.file_offset..(ph.file_offset + ph.file_size)];
+                    let dst = unsafe { core::slice::from_raw_parts_mut(ph.virtual_addr as *mut u8, ph.mem_size) };
+                    dst.copy_from_slice(src);
+                }
+            }
+            for area in &self.memory_set.areas {
+                if !area.map_perm.contains(MapPermission::W) {
+                    area.change_perm(area.map_perm, &self.memory_set.page_table);
+                }
+            }
+        } else {
+            assert!(false, "no elf data")
+        }
     }
 }
 
@@ -37,6 +66,7 @@ impl ProcessControlBlock {
         let inner = ProcessControlBlockInner::new(memory_set);
         let process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
         let process = Arc::new(process);
+        // 3. alloc task resource
         let task = TaskControlBlock::new(process.clone(), entry_point, false);
         process.add_task(Arc::new(task));
         process

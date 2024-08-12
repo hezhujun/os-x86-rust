@@ -101,6 +101,10 @@ impl PageTableEntry {
     pub fn flag(&self) -> PteFlags {
         PteFlags::from_bits_truncate(self.0 & 0xfff)
     }
+
+    pub fn set_flag(&mut self, flag: PteFlags) {
+        *self = Self::new(self.address(), flag);
+    }
 }
 
 impl Display for PageTableEntry {
