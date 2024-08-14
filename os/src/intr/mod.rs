@@ -4,6 +4,7 @@ mod context;
 mod pic;
 
 pub use context::*;
+pub use define::IrqErrorCode;
 use core::arch::{asm, global_asm};
 use alloc::sync::Arc;
 use define::*;
@@ -56,7 +57,6 @@ pub extern "C" fn intr_handler(intr_context: IntrContext) {
     let error_code = intr_context.error_code;
     let eip = intr_context.eip;
     let cs = intr_context.cs;
-    // debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs);
     assert!((intr >> 8) == 0);
     let handler = INTR_HANDLER_TABLE.lock()[intr];
     handler(intr_context);

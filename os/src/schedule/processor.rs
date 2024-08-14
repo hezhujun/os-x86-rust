@@ -5,6 +5,7 @@ use spin::Mutex;
 
 use crate::config::*;
 use crate::intr;
+use crate::mm::PageTable;
 use crate::process::{TaskContext, TaskControlBlock, TaskStatus};
 use crate::mm::update_tss;
 use super::DATA_SELECTOR;
@@ -53,10 +54,12 @@ pub fn run_tasks() {
                 update_tss(DATA_SELECTOR as usize, task_inner.kernel_stack_top_address.0);
             }
             
+            let pdt_ppn = process_inner.memory_set.page_table.pdt_ppn;
             // 切换页表
             unsafe {
-                asm!("mov cr3, {}", in(reg) process_inner.memory_set.page_table.pdt_ppn.base_address().0);
+                asm!("mov cr3, {}", in(reg) pdt_ppn.base_address().0);
             }
+            assert_eq!(pdt_ppn, PageTable::pdt_ppn());
             
             drop(process_inner);
             drop(task_inner);

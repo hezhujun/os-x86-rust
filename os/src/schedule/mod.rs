@@ -9,7 +9,7 @@ use processor::{schedule, take_current_task};
 use switch::__switch;
 
 use crate::config::*;
-use crate::intr;
+use crate::intr::*;
 use crate::mm::*;
 use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
 
@@ -31,9 +31,15 @@ pub fn suspend_current_and_run_next() {
 }
 
 
-pub fn handle_page_fault() {
+fn page_fault_intr_handler(intr_context: IntrContext) {
+    let intr = intr_context.intr;
+    let error_code = intr_context.error_code;
+    let eip = intr_context.eip;
+    let cs = intr_context.cs;
     if let Some(task) = current_task() {
         if let Some(process) = task.process.upgrade() {
+            let pid = process.get_pid();
+            let mut is_repaired = false;
             let mut process_inner = process.inner.lock();
             let memory_set = &process_inner.memory_set;
             let page_table = &memory_set.page_table;
@@ -41,12 +47,18 @@ pub fn handle_page_fault() {
             if let Some(map_area) = memory_set.areas.first() {
                 let start_vpn = map_area.vpn_range.start;
                 is_mapped = page_table.is_vpn_present(start_vpn);
+                is_repaired = true;
             }
 
             if !is_mapped {
                 process_inner.map_all_areas_and_load_data();
+                is_repaired = true;
             }
 
+            if !is_repaired {
+                // if no repair operation, something error, exit process
+                assert!(false);
+            }
             return
         }
     }
@@ -54,7 +66,7 @@ pub fn handle_page_fault() {
 }
 
 pub fn init() {
-    
+    INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
 }
 
 static mut PROCESS_LIST: Option<[Arc<ProcessControlBlock>; 5]> = None;
@@ -63,7 +75,7 @@ pub fn thread_0() {
     debug!("thread_0");
     loop {
         for i in 0..1000000 {
-            debug!("thread_0 [{}]", i);
+            info!("thread_0 [{}]", i);
         }
     }
 }
@@ -72,7 +84,7 @@ pub fn thread_1() {
     debug!("thread_1");
     loop {
         for i in 0..1000000 {
-            debug!("thread_1 [{}]", i);
+            info!("thread_1 [{}]", i);
         }
     }
 }
@@ -116,13 +128,13 @@ pub fn test() {
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
 
-    debug!("thread_0 address {:#x}", thread_0 as usize);
+    info!("thread_0 address {:#x}", thread_0 as usize);
     let process3 = ProcessControlBlock::new_kernel_process(thread_0 as usize);
     let task3 = {
         let inner = process3.inner.lock();
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
-    debug!("thread_1 address {:#x}", thread_1 as usize);
+    info!("thread_1 address {:#x}", thread_1 as usize);
     let process4 = ProcessControlBlock::new_kernel_process(thread_1 as usize);
     let task4 = {
         let inner = process4.inner.lock();
@@ -139,5 +151,5 @@ pub fn test() {
         PROCESS_LIST = Some([process0, process1, process2, process3, process4]);
     }
 
-    debug!("test done");
+    info!("test done");
 }

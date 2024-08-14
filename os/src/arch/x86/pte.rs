@@ -69,6 +69,10 @@ impl PageDirectoryEntry {
         self.0 & 0xfffff000
     }
 
+    pub fn set_address(&mut self, address: u32) {
+        *self = Self::new(address, self.flag());
+    }
+
     pub fn flag(&self) -> PdeFlags {
         PdeFlags::from_bits_truncate(self.0 & 0xfff)
     }

@@ -49,8 +49,8 @@ impl MapArea {
 
     /// 映射 vpn 到 ppn，并清理 vpn 页内容
     pub fn map(&mut self, page_table: &mut PageTable) {
-        for vpn in self.vpn_range.start.0..self.vpn_range.end.0 {
-            self.map_once(page_table, VirtPageNum(vpn));
+        for vpn in self.vpn_range.clone() {
+            self.map_once(page_table, vpn);
         }
     }
 
@@ -68,10 +68,12 @@ impl MapArea {
     }
 
     fn map_once(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
+        // debug!("map once vpn {:#x}", vpn.base_address().0);
         let frame = alloc_phys_frame(1).unwrap();
         let ppn: PhysPageNum = frame.base_ppn;
         self.data_frames.insert(vpn, frame);
         page_table.map_with_create_pde(vpn, ppn, self.map_perm.into());
+        // debug!("map once vpn {:#x} done", vpn.base_address().0);
         assert!(page_table.is_pte_present(vpn));
         page_table.get_mut::<[u8; MEMORY_PAGE_SIZE], _>(vpn, 0, |bytes_array| {
             bytes_array.iter_mut().for_each(|b| * b = 0);
@@ -189,7 +191,7 @@ impl MemorySet {
             let start_va = VirtAddr(ph.virtual_addr);
             let end_va = VirtAddr(ph.virtual_addr + ph.mem_size);
             let mut start_vpn = start_va.virt_page_num_floor();
-            let end_vpn = end_va.virt_page_num_floor();
+            let end_vpn = end_va.virt_page_num_ceil();
             let mut map_perm = MapPermission::U;
             if ph.flags.is_read() {
                 map_perm |= MapPermission::R;
@@ -202,7 +204,7 @@ impl MemorySet {
             }
             let area = if let Some(mut area) = areas.pop() {
                 if area.vpn_range.end > start_vpn {
-                    area.map_perm.union(map_perm);
+                    area.map_perm = area.map_perm.union(map_perm);
                     start_vpn = area.vpn_range.end;
                     if start_vpn < end_vpn {
                         areas.push(area);
@@ -211,6 +213,7 @@ impl MemorySet {
                         area
                     }
                 } else {
+                    areas.push(area);
                     MapArea::new(start_vpn..end_vpn, None, map_perm)
                 }
             } else {

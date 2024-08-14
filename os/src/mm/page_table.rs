@@ -24,6 +24,9 @@ impl PageTable {
         Self::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
         pdt_vpn.get_bytes_array().iter_mut().for_each(|b| *b = 0);
         ret.copy_kernel_space();
+        let pde_array = pdt_vpn.get_pde_array();
+        let pde = &mut pde_array[1023];
+        pde.set_address(pdt_ppn.base_address().0.try_into().unwrap());
         ret
     }
 
@@ -42,11 +45,17 @@ impl PageTable {
         PhysAddr(pde_array[0x3ff].address().try_into().unwrap()).into()
     }
 
+    pub fn refresh() {
+        unsafe {
+            asm!("mov cr3, {}", in(reg) Self::pdt_ppn().base_address().0);
+        }
+    }
+
     fn copy_kernel_space(&self) {
         let kernel_memory_set = KERNEL_MEMORY_SET.lock();
         let src = kernel_memory_set.page_table.pdt_vpn.get_pde_array();
         let dst = self.pdt_vpn.get_pde_array();
-        for idx in 768..1023 {
+        for idx in 768..=1023 {
             dst[idx] = src[idx];
         }
     }
@@ -125,14 +134,10 @@ impl PageTable {
         self.map(virt_frame_stub.base_vpn, ppn, PteFlags::P | PteFlags::RW);
         // attention!
         // force refresh page table
-        unsafe {
-            asm!("mov cr3, {}", in(reg) Self::pdt_ppn().base_address().0);
-        }
+        PageTable::refresh();
         f(virt_frame_stub.base_vpn);
         self.unmap(virt_frame_stub.base_vpn);
-        unsafe {
-            asm!("mov cr3, {}", in(reg) Self::pdt_ppn().base_address().0);
-        }
+        PageTable::refresh();
     }
 
     pub fn get_pde_ref<F: FnOnce(&PageDirectoryEntry)>(&self, vpn: VirtPageNum, f: F) {
@@ -195,7 +200,6 @@ impl PageTable {
         assert!(self.is_pde_present(vpn));
         let index2 = vpn.0 & 0x3ff;
         let index1 = (vpn.0 >> 10) & 0x3ff;
-        
         if self.pdt_ppn == Self::pdt_ppn() || vpn.base_address().0 >= HIGH_ADDRESS_BASE {
             let address = 0x3ffusize << 22 | index1 << 12;
             let second_vpn: VirtPageNum = VirtAddr(address).into();
@@ -204,6 +208,7 @@ impl PageTable {
             };
             f(&mut pte_array[index2]);
         } else {
+            // debug!("get_pte_mut2");
             let pte_page_pa = PhysAddr(self.get_pte_page_phys_address(vpn));
             let pte_page_ppn = pte_page_pa.phys_page_num_floor();
             self.tmp_map(pte_page_ppn, |page_vpn| {
