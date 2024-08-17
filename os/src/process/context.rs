@@ -25,7 +25,7 @@ impl TaskContext {
         let return_address = intr_exit as usize;
         let mut esp = kstack_top.0 - core::mem::size_of::<IntrContext>();
         let stack_top = VirtAddr(esp);
-        *stack_top.as_mut_ref() = intr_context;
+        *stack_top.as_mut() = intr_context;
 
         // esp point to return address in stack
         esp -= 4;
