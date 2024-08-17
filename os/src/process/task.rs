@@ -19,6 +19,7 @@ pub struct TaskControlBlockInner {
     pub user_stack_top_address: Option<VirtAddr>,
     pub kernel_stack_map_area: MapArea,
     pub user_stack_map_area: Option<MapArea>,
+    pub exit_code: isize,
 }
 
 impl TaskControlBlockInner {
@@ -80,6 +81,7 @@ impl TaskControlBlock {
             user_stack_top_address: user_stack_top_va,
             kernel_stack_map_area: kernel_stack_area,
             user_stack_map_area: user_stack_area,
+            exit_code: 0,
         };
 
         Self { tid: tid, process: Arc::downgrade(&process), task_inner: Arc::new(Mutex::new(task_inner)) }

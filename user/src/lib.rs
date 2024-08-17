@@ -13,8 +13,7 @@ use syscall::*;
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    exit(main());
-    panic!("unreachable after sys_exit!");
+    exit(main())
 }
 
 #[linkage = "weak"]
@@ -24,4 +23,4 @@ fn main() -> isize {
 }
 
 pub fn write(fd: usize, buf: &[u8]) -> isize { sys_write(fd, buf) }
-pub fn exit(exit_code: isize) -> isize { sys_exit(exit_code) }
+pub fn exit(exit_code: isize) -> ! { sys_exit(exit_code) }

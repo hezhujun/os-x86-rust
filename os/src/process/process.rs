@@ -16,12 +16,14 @@ pub struct ProcessControlBlockInner {
     pub memory_set: MemorySet,
     pub tid_allocator: ThreadIdAllocator,
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
+    pub exit_code: isize,
+    pub is_zombie: bool,
     pub elf_data: Option<&'static [u8]>,
 }
 
 impl ProcessControlBlockInner {
     pub fn new(memory_set: MemorySet) -> Self {
-        Self { memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), elf_data: None }
+        Self { memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), exit_code: 0, is_zombie: false, elf_data: None }
     }
 
     /// 修复缺页错误

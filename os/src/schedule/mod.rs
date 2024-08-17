@@ -3,9 +3,10 @@ use core::option::Option::Some;
 use core::option::Option::None;
 use core::mem::drop;
 use alloc::{sync::Arc, task, vec::Vec};
-use manager::{add_task, fetch_task};
-use processor::current_task;
+use manager::*;
+pub use processor::current_task;
 use processor::{schedule, take_current_task};
+use spin::Mutex;
 use switch::__switch;
 
 use crate::config::*;
@@ -30,6 +31,28 @@ pub fn suspend_current_and_run_next() {
     }
 }
 
+pub fn exit_current_and_run_next(exit_code: isize) -> ! {
+    let task = take_current_task().unwrap();
+    let mut task_inner = task.task_inner.lock();
+    let process = task.process.upgrade().unwrap();
+    let tid = task.tid;
+    task_inner.exit_code = exit_code;
+    // can deallocate user space resources earlier
+    drop(task_inner);
+    drop(task);
+    if tid == 0 {
+        let pid = process.get_pid();
+        remove_from_pid2process(pid);
+        let mut process_inner = process.inner.lock();
+        process_inner.exit_code = exit_code;
+        process_inner.is_zombie = true;
+        debug!("process {} exit", pid);
+    }
+    drop(process);
+    let mut _unused = TaskContext::empty();
+    schedule(&mut _unused as *mut _);
+    panic!("unreachable after sys_exit!");
+}
 
 fn page_fault_intr_handler(intr_context: IntrContext) {
     let intr = intr_context.intr;
@@ -61,7 +84,9 @@ pub fn init() {
     INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
 }
 
-static mut PROCESS_LIST: Option<[Arc<ProcessControlBlock>; 5]> = None;
+lazy_static! {
+    static ref PROCESS_LIST: Arc<Mutex<Vec<Arc<ProcessControlBlock>>>> = Arc::new(Mutex::new(Vec::new()));
+}
 
 pub fn thread_0() {
     debug!("thread_0");
@@ -78,6 +103,13 @@ pub fn thread_1() {
         for i in 0..1000000 {
             info!("thread_1 [{}]", i);
         }
+    }
+}
+
+pub fn do_nothing() {
+    debug!("do_nothing");
+    loop {
+        
     }
 }
 
@@ -132,16 +164,33 @@ pub fn test() {
         let inner = process4.inner.lock();
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
+    info!("do_nothing address {:#x}", do_nothing as usize);
+    let process5 = ProcessControlBlock::new_kernel_process(do_nothing as usize);
+    let task5 = {
+        let inner = process5.inner.lock();
+        inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
+    };
 
-    add_task(task3);
-    add_task(task4);
     add_task(task0);
+    insert_into_pid2process(0, process0.clone());
     add_task(task1);
+    insert_into_pid2process(1, process1.clone());
     add_task(task2);
+    insert_into_pid2process(2, process2.clone());
+    // add_task(task3);
+    // insert_into_pid2process(3, process3.clone());
+    // add_task(task4);
+    // insert_into_pid2process(4, process4.clone());
+    add_task(task5);
+    insert_into_pid2process(5, process5.clone());
 
-    unsafe {
-        PROCESS_LIST = Some([process0, process1, process2, process3, process4]);
-    }
+    let mut process_list = PROCESS_LIST.lock();
+    process_list.push(process0);
+    process_list.push(process1);
+    process_list.push(process2);
+    process_list.push(process3);
+    process_list.push(process4);
+    process_list.push(process5);
 
     info!("test done");
 }
