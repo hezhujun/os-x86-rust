@@ -39,22 +39,11 @@ fn page_fault_intr_handler(intr_context: IntrContext) {
     if let Some(task) = current_task() {
         if let Some(process) = task.process.upgrade() {
             let pid = process.get_pid();
-            let mut is_repaired = false;
             let mut process_inner = process.inner.lock();
             let memory_set = &process_inner.memory_set;
             let page_table = &memory_set.page_table;
-            let mut is_mapped = false;
-            if let Some(map_area) = memory_set.areas.first() {
-                let start_vpn = map_area.vpn_range.start;
-                is_mapped = page_table.is_vpn_present(start_vpn);
-                is_repaired = true;
-            }
 
-            if !is_mapped {
-                process_inner.map_all_areas_and_load_data();
-                is_repaired = true;
-            }
-
+            let is_repaired = process_inner.repair_page_fault();
             if !is_repaired {
                 // if no repair operation, something error, exit process
                 assert!(false);

@@ -42,7 +42,7 @@ impl TaskControlBlock {
                 None,
                 MapPermission::R | MapPermission::W | MapPermission::U
             );
-            user_stack_area.map(&mut process_inner.memory_set.page_table);
+            user_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
             (Some(user_stack_top_va), Some(user_stack_area), IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address)))
         } else {
             (None, None, IntrContext::kernel_intr_context(VirtAddr(entry_point)))
@@ -57,7 +57,7 @@ impl TaskControlBlock {
             Some(kernel_stack_vstub), 
             MapPermission::R | MapPermission::W
         );
-        kernel_stack_area.map(&mut process_inner.memory_set.page_table);
+        kernel_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
         let task_inner = TaskControlBlockInner {
             status: TaskStatus::Ready,
             intr_cx: IntrContext::empty(),

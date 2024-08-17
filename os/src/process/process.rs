@@ -24,31 +24,43 @@ impl ProcessControlBlockInner {
         Self { memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), elf_data: None }
     }
 
-    pub fn map_all_areas_and_load_data(&mut self) {
+    /// 修复缺页错误
+    /// 返回内容：是否有修复页表
+    pub fn repair_page_fault(&mut self) -> bool {
+        let mut is_modified = false;
         for area in &mut self.memory_set.areas {
-            area.map(&mut self.memory_set.page_table);
+            is_modified |= area.map_if_need(&mut self.memory_set.page_table);
         }
-        if let Some(elf_data) = self.elf_data.as_ref() {
-            for area in &self.memory_set.areas {
-                if !area.map_perm.contains(MapPermission::W) {
-                    area.change_perm(area.map_perm | MapPermission::W, &self.memory_set.page_table);
+
+        if is_modified {
+            // 刚创建页表，拷贝数据
+            if let Some(elf_data) = self.elf_data.as_ref() {
+                for area in &self.memory_set.areas {
+                    if !area.map_perm.contains(MapPermission::W) {
+                        area.change_perm(area.map_perm | MapPermission::W, &self.memory_set.page_table);
+                    }
                 }
-            }
-            if let Some(phs) = self.memory_set.program_headers.as_ref() {
-                for ph in phs {
-                    let src = &elf_data[ph.file_offset..(ph.file_offset + ph.file_size)];
-                    let dst = unsafe { core::slice::from_raw_parts_mut(ph.virtual_addr as *mut u8, ph.mem_size) };
-                    dst.copy_from_slice(src);
+                if let Some(phs) = self.memory_set.program_headers.as_ref() {
+                    for ph in phs {
+                        let src = &elf_data[ph.file_offset..(ph.file_offset + ph.file_size)];
+                        let dst = unsafe { core::slice::from_raw_parts_mut(ph.virtual_addr as *mut u8, ph.mem_size) };
+                        dst.copy_from_slice(src);
+                    }
                 }
-            }
-            for area in &self.memory_set.areas {
-                if !area.map_perm.contains(MapPermission::W) {
-                    area.change_perm(area.map_perm, &self.memory_set.page_table);
+                for area in &self.memory_set.areas {
+                    if !area.map_perm.contains(MapPermission::W) {
+                        area.change_perm(area.map_perm, &self.memory_set.page_table);
+                    }
                 }
+            } else {
+                assert!(false, "no elf data")
             }
         } else {
-            assert!(false, "no elf data")
+            // 已经创建过页表，判断进程是否是有过 fork 操作
+            
         }
+
+        is_modified
     }
 }
 

@@ -48,10 +48,16 @@ impl MapArea {
     }
 
     /// 映射 vpn 到 ppn，并清理 vpn 页内容
-    pub fn map(&mut self, page_table: &mut PageTable) {
+    /// 返回内容：是否有修复页表
+    pub fn map_if_need(&mut self, page_table: &mut PageTable) -> bool {
+        let mut is_modified = false;
         for vpn in self.vpn_range.clone() {
-            self.map_once(page_table, vpn);
+            if !page_table.is_vpn_present(vpn) {
+                self.map_once(page_table, vpn);
+                is_modified = true
+            }
         }
+        is_modified
     }
 
     /// 取消映射 vpn 到 ppn
@@ -68,12 +74,10 @@ impl MapArea {
     }
 
     fn map_once(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
-        // debug!("map once vpn {:#x}", vpn.base_address().0);
         let frame = alloc_phys_frame(1).unwrap();
         let ppn: PhysPageNum = frame.base_ppn;
         self.data_frames.insert(vpn, frame);
         page_table.map_with_create_pde(vpn, ppn, self.map_perm.into());
-        // debug!("map once vpn {:#x} done", vpn.base_address().0);
         assert!(page_table.is_pte_present(vpn));
         page_table.get_mut::<[u8; MEMORY_PAGE_SIZE], _>(vpn, 0, |bytes_array| {
             bytes_array.iter_mut().for_each(|b| * b = 0);
@@ -222,14 +226,6 @@ impl MemorySet {
             areas.push(area);
         }
         areas
-    }
-
-    pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
-        map_area.map(&mut self.page_table);
-        if let Some(data) = data {
-            map_area.copy_data(&mut self.page_table, data);
-        }
-        self.areas.push(map_area);
     }
 }
 

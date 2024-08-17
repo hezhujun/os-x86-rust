@@ -208,7 +208,6 @@ impl PageTable {
             };
             f(&mut pte_array[index2]);
         } else {
-            // debug!("get_pte_mut2");
             let pte_page_pa = PhysAddr(self.get_pte_page_phys_address(vpn));
             let pte_page_ppn = pte_page_pa.phys_page_num_floor();
             self.tmp_map(pte_page_ppn, |page_vpn| {
