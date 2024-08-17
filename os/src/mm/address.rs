@@ -72,16 +72,25 @@ impl VirtPageNum {
     }
 }
 
-
-impl PhysPageNum {
-    pub fn get_bytes_array(&self) -> &'static mut [u8] {
-        unsafe {
-            core::slice::from_raw_parts_mut(self.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
-        }
-    }
-}
-
 impl VirtPageNum {
+    pub fn get_ref<T: Sized, F: for<'a> FnOnce(&'a T) -> ()>(&self, offset: usize, f: F) {
+        if offset + core::mem::size_of::<T>() > MEMORY_PAGE_SIZE {
+            return;
+        }
+        let address = self.base_address().0 + offset;
+        let value = unsafe { (address as *const T).as_ref() }.unwrap();
+        f(value);
+    }
+
+    pub fn get_mut<T: Sized, F: for<'a> FnOnce(&'a mut T) -> ()>(&self, offset: usize, f: F) {
+        if offset + core::mem::size_of::<T>() > MEMORY_PAGE_SIZE {
+            return;
+        }
+        let address = self.base_address().0 + offset;
+        let value = unsafe { (address as *mut T).as_mut() }.unwrap();
+        f(value);
+    }
+
     pub fn get_bytes_array(&self) -> &'static mut [u8] {
         unsafe {
             core::slice::from_raw_parts_mut(self.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)

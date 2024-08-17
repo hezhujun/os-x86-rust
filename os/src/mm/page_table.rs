@@ -278,12 +278,36 @@ impl PageTable {
         assert!(self.is_pte_present(vpn));
     }
 
+    pub fn get_vpn_phys_address(&self, vpn: VPN) -> Option<PhysAddr> {
+        if !self.is_pde_present(vpn) {
+            return None;
+        }
+        let mut address: usize = 0;
+        self.get_pte_ref(vpn, |pte|{
+            address = pte.address() as usize;
+        });
+        Some(PhysAddr(address))
+    }
+
     pub fn is_vpn_present(&self, vpn: VPN) -> bool {
+        return self.is_pte_present(vpn)
+    }
+
+    pub fn is_vpn_readable(&self, vpn: VPN) -> bool {
+        return self.is_pde_present(vpn)
+    }
+
+    pub fn is_vpn_writable(&self, vpn: VPN) -> bool {
         if !self.is_pde_present(vpn) {
             return false;
         }
-        self.is_pte_present(vpn)
+        let mut is_writable = false;
+        self.get_pte_ref(vpn, |pte|{
+            is_writable = pte.flag().contains(PteFlags::RW);
+        });
+        return is_writable
     }
+
 }
 
 
