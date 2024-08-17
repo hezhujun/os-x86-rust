@@ -40,10 +40,13 @@ fn page_fault_intr_handler(intr_context: IntrContext) {
         if let Some(process) = task.process.upgrade() {
             let pid = process.get_pid();
             let mut process_inner = process.inner.lock();
-            let memory_set = &process_inner.memory_set;
-            let page_table = &memory_set.page_table;
+            let mut is_repaired = process_inner.repair_page_fault();
+            debug!("repaired process area");
 
-            let is_repaired = process_inner.repair_page_fault();
+            let memory_set = &mut process_inner.memory_set;
+            let page_table = &mut memory_set.page_table;
+            let mut task_inner = task.task_inner.lock();
+            is_repaired |= task_inner.repair_page_fault(page_table);
             if !is_repaired {
                 // if no repair operation, something error, exit process
                 assert!(false);

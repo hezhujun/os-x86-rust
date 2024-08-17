@@ -289,7 +289,7 @@ impl PageTable {
     }
 
     pub fn is_vpn_present(&self, vpn: VPN) -> bool {
-        return self.is_pte_present(vpn)
+        return self.is_pde_present(vpn) && self.is_pte_present(vpn)
     }
 
     pub fn is_vpn_readable(&self, vpn: VPN) -> bool {

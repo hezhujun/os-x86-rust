@@ -3,7 +3,7 @@ use spin::Mutex;
 
 use crate::{intr::IntrContext, mm::MapArea};
 use crate::config::*;
-use crate::mm::{alloc_kernel_virt_frame, MapPermission, VirtAddr, VirtPageNum};
+use crate::mm::*;
 use crate::utils::*;
 use super::{context::TaskContext, process::ProcessControlBlock};
 
@@ -19,6 +19,20 @@ pub struct TaskControlBlockInner {
     pub user_stack_top_address: Option<VirtAddr>,
     pub kernel_stack_map_area: MapArea,
     pub user_stack_map_area: Option<MapArea>,
+}
+
+impl TaskControlBlockInner {
+    pub fn repair_page_fault(&mut self, page_table: &mut PageTable) -> bool {
+        let mut is_modified = self.kernel_stack_map_area.map_if_need(page_table);
+        if let Some(user_stack_map_area) = self.user_stack_map_area.as_mut() {
+            is_modified |= user_stack_map_area.map_if_need(page_table);
+        }
+        if !is_modified {
+            // 已经创建过页表，判断进程是否是有过 fork 操作
+        }
+
+        is_modified
+    }
 }
 
 pub struct TaskControlBlock {
@@ -42,7 +56,7 @@ impl TaskControlBlock {
                 None,
                 MapPermission::R | MapPermission::W | MapPermission::U
             );
-            user_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
+            // user_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
             (Some(user_stack_top_va), Some(user_stack_area), IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address)))
         } else {
             (None, None, IntrContext::kernel_intr_context(VirtAddr(entry_point)))
