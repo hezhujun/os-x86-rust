@@ -38,13 +38,18 @@ impl From<MapPermission> for PteFlags {
 pub struct MapArea {
     pub vpn_range: VPNRange,
     pub map_perm: MapPermission,
-    vpn_stub: Option<VirtFrameStub>,
-    data_frames: BTreeMap<VirtPageNum, PhysFrameStub>,
+    data_frames: BTreeMap<VirtPageNum, Arc<PhysFrameStub>>,
 }
 
 impl MapArea {
-    pub fn new(vpn_range: VPNRange, vpn_stub: Option<VirtFrameStub>, map_perm: MapPermission) -> Self {
-        Self { vpn_range, map_perm, vpn_stub, data_frames: BTreeMap::new()}
+    pub fn new(vpn_range: VPNRange, map_perm: MapPermission) -> Self {
+        Self { vpn_range, map_perm, data_frames: BTreeMap::new()}
+    }
+
+    pub fn copy(&self) -> Self {
+        let vpn_range = self.vpn_range.clone();
+        let map_perm = self.map_perm;
+        MapArea { vpn_range, map_perm, data_frames: self.data_frames.clone() }
     }
 
     /// 映射 vpn 到 ppn，并清理 vpn 页内容
@@ -73,10 +78,39 @@ impl MapArea {
         }
     }
 
+    pub fn copy_if_need(&mut self, page_table: &mut PageTable) -> bool {
+        let mut is_modified = false;
+        if self.map_perm.contains(MapPermission::W) {
+            for vpn in self.vpn_range.clone() {
+                assert!(page_table.is_vpn_present(vpn));
+                if !page_table.is_vpn_writable(vpn) {
+                    let mut is_need_remap = false;
+                    if let Some(frame_stub) = self.data_frames.get(&vpn) {
+                        if Arc::strong_count(frame_stub) == 1 {
+                            page_table.set_pte_flag(vpn, self.map_perm.into());
+                        } else {
+                            is_need_remap = true;
+                        }
+                    } else {
+                        assert!(false);
+                    }
+                    if is_need_remap {
+                        let frame = alloc_phys_frame(1).unwrap();
+                        let ppn = frame.base_ppn;
+                        page_table.remap_for_fork_process(vpn, ppn, self.map_perm.into());
+                        self.data_frames.insert(vpn, Arc::new(frame));
+                    }
+                    is_modified = true;
+                }
+            }
+        }
+        is_modified
+    }
+
     fn map_once(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let frame = alloc_phys_frame(1).unwrap();
         let ppn: PhysPageNum = frame.base_ppn;
-        self.data_frames.insert(vpn, frame);
+        self.data_frames.insert(vpn, Arc::new(frame));
         page_table.map_with_create_pde(vpn, ppn, self.map_perm.into());
         assert!(page_table.is_pte_present(vpn));
         page_table.get_mut::<[u8; MEMORY_PAGE_SIZE], _>(vpn, 0, |bytes_array| {
@@ -110,6 +144,7 @@ impl MapArea {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct ProgramHeader {
     pub virtual_addr: usize,
     pub mem_size: usize,
@@ -134,7 +169,6 @@ impl Drop for MemorySet {
 }
 
 impl MemorySet {
-
     pub fn new_kernel_memory_set() -> Self {
         // 创建 page_table
         let pdt_pstub = alloc_phys_frame(1).unwrap();
@@ -188,6 +222,38 @@ impl MemorySet {
         (memory_set, elf.header.pt2.entry_point() as usize)
     }
 
+    pub fn copy(&self) -> Self {
+        // 创建 page_table
+        let pdt_pstub = alloc_phys_frame(1).unwrap();
+        let pdt_ppn = pdt_pstub.base_ppn;
+        let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
+        let pdt_vpn = pdt_vstub.base_vpn;
+        let page_table = self.page_table.copy(pdt_ppn, pdt_vpn);
+
+        // 设置当前进程和新进程用户空间的内存只读
+        for area in &self.areas {
+            if area.map_perm.contains(MapPermission::W) {
+                let mut map_perm: MapPermission = area.map_perm;
+                map_perm.remove(MapPermission::W);
+                area.change_perm(map_perm, &page_table);
+            }
+        }
+
+        let mut new_areas = Vec::new();
+        for area in &self.areas {
+            new_areas.push(area.copy());
+        }
+
+        MemorySet { 
+            pdt_pstub, 
+            pdt_vstub, 
+            page_table, 
+            areas: new_areas, 
+            user_stack_base: self.user_stack_base, 
+            program_headers: self.program_headers.clone(),
+        }
+    }
+
     fn generate_map_area(program_headers: &Vec<ProgramHeader>) -> Vec<MapArea> {
         let mut areas: Vec<MapArea> = Vec::new();
         // asume program_headers are sorted
@@ -212,16 +278,16 @@ impl MemorySet {
                     start_vpn = area.vpn_range.end;
                     if start_vpn < end_vpn {
                         areas.push(area);
-                        MapArea::new(start_vpn..end_vpn, None, map_perm)
+                        MapArea::new(start_vpn..end_vpn, map_perm)
                     } else {
                         area
                     }
                 } else {
                     areas.push(area);
-                    MapArea::new(start_vpn..end_vpn, None, map_perm)
+                    MapArea::new(start_vpn..end_vpn, map_perm)
                 }
             } else {
-                MapArea::new(start_vpn..end_vpn, None, map_perm)
+                MapArea::new(start_vpn..end_vpn, map_perm)
             };
             areas.push(area);
         }

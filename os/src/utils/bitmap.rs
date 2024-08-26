@@ -1,4 +1,5 @@
 
+#[derive(Clone, Copy, Debug)]
 pub struct Bitmap<const N: usize> {
     map: [u8; N]
 }

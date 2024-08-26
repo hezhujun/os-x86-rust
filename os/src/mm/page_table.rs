@@ -4,6 +4,7 @@ use core::option::Option;
 use core::marker::Sized;
 use core::ops::FnOnce;
 use core::convert::From;
+use alloc::collections::BTreeMap;
 use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
@@ -15,12 +16,12 @@ pub struct PageTable {
     pub pdt_ppn: PhysPageNum,
     pub pdt_vpn: VirtPageNum,
     /// 保存申请的 pet page
-    frames: Vec<PhysFrameStub>,
+    frames: BTreeMap<usize, Arc<PhysFrameStub>>,
 }
 
 impl PageTable {
     pub fn new(pdt_ppn: PhysPageNum, pdt_vpn: VirtPageNum) -> Self {
-        let ret = Self { pdt_ppn, pdt_vpn, frames: Vec::new() };
+        let ret = Self { pdt_ppn, pdt_vpn, frames: BTreeMap::new() };
         Self::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
         pdt_vpn.get_bytes_array().iter_mut().for_each(|b| *b = 0);
         ret.copy_kernel_space();
@@ -31,7 +32,19 @@ impl PageTable {
     }
 
     pub fn from_exists(pdt_ppn: PhysPageNum, pdt_vpn: VirtPageNum) -> Self {
-        Self { pdt_ppn, pdt_vpn, frames: Vec::new() }
+        Self { pdt_ppn, pdt_vpn, frames: BTreeMap::new() }
+    }
+
+    pub fn copy(&self, pdt_ppn: PhysPageNum, pdt_vpn: VirtPageNum) -> Self {
+        let ret = Self { pdt_ppn, pdt_vpn, frames: self.frames.clone() };
+        Self::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
+        let src = self.pdt_vpn.as_byte_array_ref();
+        let dst = pdt_vpn.as_byte_array_mut();
+        dst.copy_from_slice(src);
+        let pde_array = pdt_vpn.as_pde_array_mut();
+        let pde = &mut pde_array[1023];
+        pde.set_address(pdt_ppn.base_address().0.try_into().unwrap());
+        ret
     }
 }
 
@@ -97,7 +110,8 @@ impl PageTable {
                 pde_flags |= PdeFlags::US;
             }
             let new_entry = PageDirectoryEntry::new(frame_ppn.base_address().0.try_into().unwrap(), pde_flags);
-            self.frames.push(frame);
+            let pde_index = (vpn.0 >> 10) & 0x3ff;
+            self.frames.insert(pde_index, Arc::new(frame));
             self.tmp_map(frame_ppn, |vpn| {
                 let bytes_array = unsafe {
                     core::slice::from_raw_parts_mut(vpn.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
@@ -108,6 +122,42 @@ impl PageTable {
                 *pde = new_entry;
             });
             self.map(vpn, ppn, flag);
+        }
+    }
+
+    pub fn remap_for_fork_process(&mut self, vpn: VPN, ppn: PhysPageNum, flag: PteFlags) {
+        assert!(self.is_pde_present(vpn));
+        self.remap_pde_if_need(vpn);
+        self.get_pte_mut(vpn, |pte| {
+            let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), flag);
+            *pte = new_entry;
+        });
+        assert!(self.is_pte_present(vpn));
+        assert_eq!(ppn, self.get_ppn(vpn));
+    }
+
+    pub fn remap_pde_if_need(&mut self, vpn: VPN) {
+        let pde_index = (vpn.0 >> 10) & 0x3ff;
+        if let Some(frame_ref) = self.frames.get(&pde_index) {
+            if Arc::strong_count(frame_ref) > 1 {
+                let frame = alloc_phys_frame(1).unwrap();
+                let frame_ppn = frame.base_ppn;
+                let mut pde_flags = PdeFlags::P | PdeFlags::RW;
+                if vpn.base_address().0 < HIGH_ADDRESS_BASE {
+                    pde_flags |= PdeFlags::US;
+                }
+                let new_entry = PageDirectoryEntry::new(frame_ppn.base_address().0.try_into().unwrap(), pde_flags);
+                let pde_frame_vaddress = 0x3ffusize << 22 | pde_index << 12;
+                let pde_frame_vpn = VirtAddr(pde_frame_vaddress).virt_page_num_floor();
+                self.tmp_map(frame_ppn, |vpn| {
+                    let src = pde_frame_vpn.as_byte_array_ref();
+                    let dst = vpn.as_byte_array_mut();
+                    dst.copy_from_slice(src);
+                });
+                self.frames.insert(pde_index, Arc::new(frame));
+            }
+        } else {
+            assert!(false);
         }
     }
 
@@ -311,6 +361,14 @@ impl PageTable {
 
 
 impl VirtPageNum {
+    pub fn as_pde_array_ref(&self) -> &[PageDirectoryEntry; PTE_SIZE_IN_PAGE] {
+        self.as_ref()
+    }
+
+    pub fn as_pde_array_mut(&self) -> &mut [PageDirectoryEntry; PTE_SIZE_IN_PAGE] {
+        self.as_mut()
+    }
+
     pub fn get_pde_array(&self) -> &'static mut [PageDirectoryEntry] {
         let pa: VirtAddr = self.base_address();
         unsafe {

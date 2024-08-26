@@ -91,14 +91,13 @@ impl VirtPageNum {
         }
     }
 
-    pub fn as_bytes_array_ref(&self) -> &[u8; MEMORY_PAGE_SIZE] {
+    pub fn as_byte_array_ref(&self) -> &[u8; MEMORY_PAGE_SIZE] {
         unsafe {
             (self.base_address().0 as *const [u8; MEMORY_PAGE_SIZE]).as_ref().unwrap()
         }
     }
 
-    pub fn as_bytes_array_mut<T: Sized>(&self) -> &mut [u8; MEMORY_PAGE_SIZE] {
-        assert!(core::mem::size_of::<T>() < MEMORY_PAGE_SIZE);
+    pub fn as_byte_array_mut(&self) -> &mut [u8; MEMORY_PAGE_SIZE] {
         unsafe {
             (self.base_address().0 as *mut [u8; MEMORY_PAGE_SIZE]).as_mut().unwrap()
         }

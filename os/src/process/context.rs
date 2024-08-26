@@ -2,6 +2,7 @@ use crate::{config::{CODE_SELECTOR, DATA_SELECTOR}, intr::*, mm::{PhysAddr, Virt
 
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
 pub struct TaskContext {
     pub return_address: usize,
     pub esp: usize,

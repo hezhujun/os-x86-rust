@@ -59,8 +59,14 @@ impl ProcessControlBlockInner {
             }
         } else {
             // 已经创建过页表，判断进程是否是有过 fork 操作
-            
+            for area in &mut self.memory_set.areas {
+                if area.map_perm.contains(MapPermission::W) {
+                    is_modified |= area.copy_if_need(&mut self.memory_set.page_table);
+                }
+            }
         }
+
+        assert!(is_modified);
 
         is_modified
     }
@@ -81,17 +87,6 @@ impl ProcessControlBlock {
         let process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
         let process = Arc::new(process);
         // 3. alloc task resource
-        let task = TaskControlBlock::new(process.clone(), entry_point, false);
-        process.add_task(Arc::new(task));
-        process
-    }
-
-    pub fn new(elf_data: &[u8]) -> Arc<Self> {
-        let pid_stub = alloc_process_id().unwrap();
-        let (memory_set, entry_point) = MemorySet::from_elf(elf_data);
-        let inner = ProcessControlBlockInner::new(memory_set);
-        let process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
-        let process = Arc::new(process);
         let task = TaskControlBlock::new(process.clone(), entry_point, false);
         process.add_task(Arc::new(task));
         process
@@ -119,6 +114,43 @@ impl ProcessControlBlock {
             inner.tasks.push(None);
         }
         inner.tasks[tid] = Some(task);
+    }
+
+    pub fn fork(&self) -> Arc<Self> {
+        // alloc pid
+        let pid_stub = alloc_process_id().unwrap();
+
+        let process_inner = self.inner.lock();
+        // copy memory space
+        let memory_set = process_inner.memory_set.copy();
+        let tid_allocator = process_inner.tid_allocator;
+        let tasks: Vec<Option<Arc<TaskControlBlock>>> = Vec::new();
+        let inner = ProcessControlBlockInner {
+            memory_set,
+            tid_allocator,
+            tasks,
+            exit_code: process_inner.exit_code,
+            is_zombie: process_inner.is_zombie,
+            elf_data: process_inner.elf_data,
+        };
+        let new_process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
+        let new_process = Arc::new(new_process);
+
+        // copy task
+        let mut tasks: Vec<Option<Arc<TaskControlBlock>>> = Vec::new();
+        for task_option in &process_inner.tasks {
+            if let Some(task) = task_option.as_ref() {
+                tasks.push(Some(Arc::new(task.copy(new_process.clone()))));
+            } else {
+                tasks.push(None);
+            }
+        }
+        let _new_process = new_process.clone();
+        let mut new_process_inner = _new_process.inner.lock();
+        new_process_inner.tasks = tasks;
+        drop(new_process_inner);
+
+        new_process
     }
 }
 
