@@ -61,19 +61,19 @@ fn register_pic_intr() {
     intr_handler_table[IrqType::IRQ_0X2F as usize] = pic_slaver_intr_handler;
 }
 
-fn time_intr_handler(intr_context: IntrContext) {
+fn time_intr_handler(intr_context: &mut IntrContext) {
     assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
     outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
 
     suspend_current_and_run_next();
 }
 
-fn pic_master_intr_handler(intr_context: IntrContext) {
+fn pic_master_intr_handler(intr_context: &mut IntrContext) {
     assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
     outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
 }
 
-fn pic_slaver_intr_handler(intr_context: IntrContext) {
+fn pic_slaver_intr_handler(intr_context: &mut IntrContext) {
     assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
     outb(PIC_S_CTRL, pic::OCW2::new(false, false, true, 0).0);
     outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);

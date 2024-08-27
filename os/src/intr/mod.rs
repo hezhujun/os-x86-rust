@@ -18,7 +18,7 @@ global_asm!(include_str!("trap.S"));
 const IDT_LEN: usize = 0x31;
 const IDT_MAX_LEN: usize = 256;
 
-type IntrHandlerFn = fn(IntrContext);
+type IntrHandlerFn = fn(&mut IntrContext);
 
 lazy_static! {
     pub static ref INTR_HANDLER_TABLE: Arc<Mutex<[IntrHandlerFn; IDT_MAX_LEN]>> = Arc::new(Mutex::new([default_intr_handler; IDT_MAX_LEN]));
@@ -51,7 +51,7 @@ pub fn begin_intr() {
 
 
 #[no_mangle]
-pub extern "C" fn intr_handler(intr_context: IntrContext) {
+pub extern "C" fn intr_handler(mut intr_context: IntrContext) {
     assert_eq!(intr_context.magic, 0x1234);
     let intr = intr_context.intr;
     let error_code = intr_context.error_code;
@@ -59,14 +59,14 @@ pub extern "C" fn intr_handler(intr_context: IntrContext) {
     let cs = intr_context.cs;
     assert!((intr >> 8) == 0);
     let handler = INTR_HANDLER_TABLE.lock()[intr];
-    handler(intr_context);
+    handler(&mut intr_context);
 }
 
 extern "C" {
     pub fn intr_exit();
 }
 
-fn default_intr_handler(intr_context: IntrContext) {
+fn default_intr_handler(intr_context: &mut IntrContext) {
     let intr = intr_context.intr;
     let error_code = intr_context.error_code;
     let eip = intr_context.eip;
