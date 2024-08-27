@@ -21,13 +21,13 @@ fn syscall_intr_handler(intr_context: &mut IntrContext) {
     let param3 = intr_context.edx;
 
     if let Some(task) = current_task() {
-        let mut task_inner = task.task_inner.lock();
+        let mut task_inner = task.inner.lock();
         task_inner.intr_cx = *intr_context;
     }
 
     let ret = match syscall_id {
         SYSCALL_WRITE => sys_write(param1, param2 as *const u8, param3),
-        SYSCALL_EXIT=> sys_exit((param1 as isize).try_into().unwrap()),
+        SYSCALL_EXIT => sys_exit((param1 as isize).try_into().unwrap()),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     };
 

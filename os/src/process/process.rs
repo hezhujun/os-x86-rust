@@ -1,6 +1,7 @@
 use core::option::Option;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use alloc::sync::Weak;
 use spin::Mutex;
 
 use crate::mm::alloc_kernel_virt_frame;
@@ -13,6 +14,8 @@ use super::task::*;
 use super::task::create_thread_id_allocator;
 
 pub struct ProcessControlBlockInner {
+    pub parent: Option<Weak<ProcessControlBlock>>,
+    pub children: Vec<Arc<ProcessControlBlock>>,
     pub memory_set: MemorySet,
     pub tid_allocator: ThreadIdAllocator,
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
@@ -23,7 +26,7 @@ pub struct ProcessControlBlockInner {
 
 impl ProcessControlBlockInner {
     pub fn new(memory_set: MemorySet) -> Self {
-        Self { memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), exit_code: 0, is_zombie: false, elf_data: None }
+        Self { parent: None, children: Vec::new(), memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), exit_code: 0, is_zombie: false, elf_data: None }
     }
 
     /// 修复缺页错误
@@ -120,12 +123,14 @@ impl ProcessControlBlock {
         // alloc pid
         let pid_stub = alloc_process_id().unwrap();
 
-        let process_inner = self.inner.lock();
+        let mut process_inner = self.inner.lock();
         // copy memory space
         let memory_set = process_inner.memory_set.copy();
         let tid_allocator = process_inner.tid_allocator;
         let tasks: Vec<Option<Arc<TaskControlBlock>>> = Vec::new();
         let inner = ProcessControlBlockInner {
+            parent: None,
+            children: Vec::new(),
             memory_set,
             tid_allocator,
             tasks,
@@ -149,6 +154,8 @@ impl ProcessControlBlock {
         let mut new_process_inner = _new_process.inner.lock();
         new_process_inner.tasks = tasks;
         drop(new_process_inner);
+        
+        process_inner.children.push(new_process.clone());
 
         new_process
     }

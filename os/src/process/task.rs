@@ -47,7 +47,7 @@ impl TaskControlBlockInner {
 pub struct TaskControlBlock {
     pub tid: usize,
     pub process: Weak<ProcessControlBlock>,
-    pub task_inner: Arc<Mutex<TaskControlBlockInner>>,
+    pub inner: Arc<Mutex<TaskControlBlockInner>>,
 }
 
 impl TaskControlBlock {
@@ -91,11 +91,11 @@ impl TaskControlBlock {
             exit_code: 0,
         };
 
-        Self { tid: tid, process: Arc::downgrade(&process), task_inner: Arc::new(Mutex::new(task_inner)) }
+        Self { tid: tid, process: Arc::downgrade(&process), inner: Arc::new(Mutex::new(task_inner)) }
     }
 
     pub fn copy(&self, new_process: Arc<ProcessControlBlock>) -> Self {
-        let task_inner = self.task_inner.lock();
+        let task_inner = self.inner.lock();
         let mut process_inner = new_process.inner.lock();
         
         let new_user_stack_area = if let Some(user_stack_map_area) = task_inner.user_stack_map_area.as_ref() {
@@ -134,12 +134,12 @@ impl TaskControlBlock {
         Self { 
             tid: self.tid, 
             process: Arc::downgrade(&new_process), 
-            task_inner: Arc::new(Mutex::new(task_inner)) 
+            inner: Arc::new(Mutex::new(task_inner)) 
         }
     }
 
     pub fn reset(&self, entry_point: usize, page_table: &PageTable) {
-        let mut task_inner = self.task_inner.lock();
+        let mut task_inner = self.inner.lock();
 
         if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
             map_area.unmap(page_table);
@@ -167,7 +167,7 @@ impl Drop for TaskControlBlock {
         if let Some(process) = self.process.upgrade() {
             let mut process_inner = process.inner.lock();
             process_inner.tid_allocator.dealloc(self.tid);
-            let mut task_inner = self.task_inner.lock();
+            let mut task_inner = self.inner.lock();
             if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
                 map_area.unmap(&mut process_inner.memory_set.page_table)
             }

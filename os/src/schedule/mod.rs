@@ -22,7 +22,7 @@ pub use processor::run_tasks;
 
 pub fn suspend_current_and_run_next() {
     if let Some(task) = take_current_task() {
-        let mut task_inner = task.task_inner.lock();
+        let mut task_inner = task.inner.lock();
         let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
         task_inner.status = TaskStatus::Ready;
         drop(task_inner);
@@ -33,7 +33,7 @@ pub fn suspend_current_and_run_next() {
 
 pub fn exit_current_and_run_next(exit_code: isize) -> ! {
     let task = take_current_task().unwrap();
-    let mut task_inner = task.task_inner.lock();
+    let mut task_inner = task.inner.lock();
     let process = task.process.upgrade().unwrap();
     let tid = task.tid;
     task_inner.exit_code = exit_code;
@@ -54,7 +54,7 @@ pub fn exit_current_and_run_next(exit_code: isize) -> ! {
     panic!("unreachable after sys_exit!");
 }
 
-fn page_fault_intr_handler(intr_context: IntrContext) {
+fn page_fault_intr_handler(intr_context: &mut IntrContext) {
     let intr = intr_context.intr;
     let error_code = intr_context.error_code;
     let eip = intr_context.eip;
@@ -68,7 +68,7 @@ fn page_fault_intr_handler(intr_context: IntrContext) {
 
             let memory_set = &mut process_inner.memory_set;
             let page_table = &mut memory_set.page_table;
-            let mut task_inner = task.task_inner.lock();
+            let mut task_inner = task.inner.lock();
             is_repaired |= task_inner.repair_page_fault(page_table);
             if !is_repaired {
                 // if no repair operation, something error, exit process
