@@ -66,9 +66,11 @@ impl MapArea {
     }
 
     /// 取消映射 vpn 到 ppn
-    pub fn unmap(&mut self, page_table: &mut PageTable) {
-        for vpn in self.vpn_range.start.0..self.vpn_range.end.0 {
-            self.unmap_once(page_table, VirtPageNum(vpn));
+    pub fn unmap(&mut self, page_table: &PageTable) {
+        for vpn in self.vpn_range.clone() {
+            if page_table.is_vpn_present(vpn) {
+                self.unmap_once(page_table, vpn);
+            }
         }
     }
 
@@ -119,7 +121,7 @@ impl MapArea {
         assert!(page_table.is_pte_present(vpn));
     }
 
-    fn unmap_once(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
+    fn unmap_once(&mut self, page_table: &PageTable, vpn: VirtPageNum) {
         self.data_frames.remove(&vpn);
         page_table.unmap(vpn);
     }
@@ -220,6 +222,47 @@ impl MemorySet {
         let memory_set = MemorySet { pdt_pstub, pdt_vstub, page_table, areas, user_stack_base: user_stack_base, program_headers: Some(program_headers) };
 
         (memory_set, elf.header.pt2.entry_point() as usize)
+    }
+
+    pub fn reset_from_elf(&mut self, elf_data: &[u8]) -> usize {
+        for area in &mut self.areas {
+            area.unmap(&mut self.page_table);
+        }
+
+        // program headers of elf, with U flag
+        let mut program_headers = Vec::new();
+        let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
+        let elf_header = elf.header;
+        let magic = elf_header.pt1.magic;
+        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
+        let ph_count: u16 = elf_header.pt2.ph_count();
+        let mut max_end_vpn = VirtPageNum(0);
+        for i in 0..ph_count {
+            let ph = elf.program_header(i).unwrap();
+            if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
+                let program_header = ProgramHeader {
+                    virtual_addr: ph.virtual_addr() as usize,
+                    mem_size: ph.mem_size() as usize,
+                    file_offset: ph.offset() as usize,
+                    file_size: ph.file_size() as usize,
+                    flags: ph.flags(),
+                };
+                program_headers.push(program_header);
+                let end_va = VirtAddr((ph.virtual_addr() + ph.mem_size()) as usize);
+                max_end_vpn = end_va.virt_page_num_ceil();
+            }
+        }
+        let max_end_va: VirtAddr = max_end_vpn.base_address();
+        let mut user_stack_base: usize = max_end_va.0;
+        // guard page
+        user_stack_base += MEMORY_PAGE_SIZE;
+
+        let areas = Self::generate_map_area(&program_headers);
+        self.areas = areas;
+        self.user_stack_base = user_stack_base;
+        self.program_headers = Some(program_headers);
+
+        elf.header.pt2.entry_point() as usize
     }
 
     pub fn copy(&self) -> Self {

@@ -152,6 +152,19 @@ impl ProcessControlBlock {
 
         new_process
     }
+
+    pub fn exec(&self, elf_data: &[u8]) {
+        let mut process_inner = self.inner.lock();
+        assert!(process_inner.tasks.len() == 1);
+
+        let entry_point = process_inner.memory_set.reset_from_elf(elf_data);
+        
+        if let Some(task_option) = process_inner.tasks.first() {
+            if let Some(task) = task_option {
+                task.reset(entry_point, &process_inner.memory_set.page_table);
+            }
+        }
+    }
 }
 
 lazy_static! {
