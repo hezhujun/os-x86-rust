@@ -119,10 +119,14 @@ impl TaskControlBlock {
         );
         kernel_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
 
+        let mut intr_cx = task_inner.intr_cx;
+        // fork 系统调用使用该方法
+        // 子进程的 fork 函数返回值为0，所以 eax 设置为 0
+        intr_cx.eax = 0;
         let task_inner = TaskControlBlockInner {
             status: task_inner.status,
-            intr_cx: task_inner.intr_cx,
-            task_cx: TaskContext::go_to_intr_return(kernel_stack_top_vpn.base_address(), task_inner.intr_cx),
+            intr_cx,
+            task_cx: TaskContext::go_to_intr_return(kernel_stack_top_vpn.base_address(), intr_cx),
             kernel_stack_vstub,
             kernel_stack_top_address: kernel_stack_top_vpn.base_address(),
             user_stack_top_address: task_inner.user_stack_top_address,

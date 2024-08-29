@@ -32,9 +32,9 @@ fn insert_app_data() -> Result<()> {
     .global app_{0}_end
     .align 4
 app_{0}_start:
-    .incbin "{2}{1}"
+    .incbin "{1}{0}"
 app_{0}_end:"#,
-            idx, app, TARGET_PATH
+            app, TARGET_PATH
         )?;
     }
 

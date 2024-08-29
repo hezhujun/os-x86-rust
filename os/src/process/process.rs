@@ -124,6 +124,7 @@ impl ProcessControlBlock {
         let pid_stub = alloc_process_id().unwrap();
 
         let mut process_inner = self.inner.lock();
+        assert!(process_inner.tasks.len() == 1);
         // copy memory space
         let memory_set = process_inner.memory_set.copy();
         let tid_allocator = process_inner.tid_allocator;
@@ -172,6 +173,15 @@ impl ProcessControlBlock {
             }
         }
     }
+}
+
+pub fn fork(process: Arc<ProcessControlBlock>) -> Arc<ProcessControlBlock> {
+    let new_process = process.fork();
+    {
+        let mut new_process_inner = new_process.inner.lock();
+        new_process_inner.parent = Some(Arc::downgrade(&process));
+    }
+    new_process
 }
 
 lazy_static! {

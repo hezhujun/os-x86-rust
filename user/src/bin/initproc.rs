@@ -7,7 +7,7 @@ extern crate user_lib;
 use user_lib::*;
 
 #[no_mangle]
-fn main() -> i32 {
+fn main() -> isize {
     loop {
         let mut exit_code: isize = 0;
         let pid = wait(&mut exit_code);

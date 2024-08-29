@@ -3,7 +3,7 @@ use core::option::Option::Some;
 use core::option::Option::None;
 use core::mem::drop;
 use alloc::{sync::Arc, task, vec::Vec};
-use manager::*;
+pub use manager::*;
 pub use processor::current_task;
 use processor::{schedule, take_current_task};
 use spin::Mutex;
@@ -13,6 +13,7 @@ use crate::config::*;
 use crate::intr::*;
 use crate::mm::*;
 use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
+use crate::programs::PROGRAMS;
 
 mod switch;
 mod manager;
@@ -114,24 +115,10 @@ pub fn do_nothing() {
 }
 
 pub fn test() {
-    extern "C" {
-        fn app_0_start();
-        fn app_0_end();
-        fn app_1_start();
-        fn app_1_end();
-        fn app_2_start();
-        fn app_2_end();
-    }
-
-    let app_0_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_0_start as usize as *const u8, app_0_end as usize - app_0_start as usize)
-    };
-    let app_1_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_1_start as usize as *const u8, app_1_end as usize - app_1_start as usize)
-    };
-    let app_2_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_2_start as usize as *const u8, app_2_end as usize - app_2_start as usize)
-    };
+    let programs = PROGRAMS.lock();
+    let app_0_data: &'static [u8] = programs.get("hello_world").unwrap();
+    let app_1_data: &'static [u8] = programs.get("hello_world_a").unwrap();
+    let app_2_data: &'static [u8] = programs.get("hello_world_b").unwrap();
 
     let process0 = ProcessControlBlock::from_elf_file(app_0_data);
     let task0 = {
