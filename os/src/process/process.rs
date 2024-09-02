@@ -4,11 +4,9 @@ use alloc::vec::Vec;
 use alloc::sync::Weak;
 use spin::Mutex;
 
-use crate::mm::alloc_kernel_virt_frame;
-use crate::mm::memory_set;
-use crate::mm::MapPermission;
-use crate::mm::MemorySet;
+use crate::arch::x86::PteFlags;
 use crate::config::*;
+use crate::mm::*;
 use crate::utils::*;
 use super::task::*;
 use super::task::create_thread_id_allocator;
@@ -187,6 +185,40 @@ pub fn fork(process: Arc<ProcessControlBlock>) -> Arc<ProcessControlBlock> {
 lazy_static! {
     static ref PROCESS_ID_ALLOCATOR: Arc<Mutex<IdAllocator<PROCESS_ID_BITMAP_SIZE>>> = {
         Arc::new(Mutex::new(IdAllocator::new(Bitmap::<PROCESS_ID_BITMAP_SIZE>::new([0; PROCESS_ID_BITMAP_SIZE]), 0, 0, PROCESS_MAX_ID, 0)))
+    };
+
+    pub static ref KERNEL_PROCESS: Arc<ProcessControlBlock> = {
+        let pdt_pa = PhysAddr(KERNEL_PDT_PHYS_ADDRESS);
+        let pdt_ppn = pdt_pa.phys_page_num_floor();
+        let pdt_pstub = PhysFrameStub { base_ppn: pdt_ppn, len: 1 };
+        let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
+        let pdt_vpn = pdt_vstub.base_vpn;
+        PageTable::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
+        let page_table = PageTable::from_exists(pdt_ppn, pdt_vpn);
+        // 内核的 user_stack_base 没有作用
+        let memory_set = MemorySet::new(
+            pdt_pstub,
+            pdt_vstub,
+            page_table,
+            0
+        );
+        let process_inner = ProcessControlBlockInner {
+            parent: None,
+            children: Vec::new(),
+            memory_set,
+            tid_allocator: create_thread_id_allocator(),
+            tasks: Vec::new(),
+            exit_code: 0,
+            is_zombie: false,
+            elf_data: None,
+        };
+
+        let pid_stub = alloc_process_id().unwrap();
+        let process = ProcessControlBlock {
+            pid_stub,
+            inner: Arc::new(Mutex::new(process_inner)),
+        };
+        Arc::new(process)
     };
 }
 

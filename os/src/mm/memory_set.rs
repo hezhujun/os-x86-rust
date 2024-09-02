@@ -156,7 +156,9 @@ pub struct ProgramHeader {
 }
 
 pub struct MemorySet {
+    /// 页表的物理页 stub
     pdt_pstub: PhysFrameStub,
+    /// 页表的虚拟页 stub
     pdt_vstub: VirtFrameStub,
     pub page_table: PageTable,
     pub areas: Vec<MapArea>,
@@ -171,6 +173,17 @@ impl Drop for MemorySet {
 }
 
 impl MemorySet {
+    pub fn new(pdt_pstub: PhysFrameStub, pdt_vstub: VirtFrameStub, page_table: PageTable, user_stack_base: usize) -> Self {
+        Self {
+            pdt_pstub,
+            pdt_vstub,
+            page_table,
+            areas: Vec::new(),
+            user_stack_base: 0,
+            program_headers: None,
+        }
+    }
+
     pub fn new_kernel_memory_set() -> Self {
         // 创建 page_table
         let pdt_pstub = alloc_phys_frame(1).unwrap();
@@ -338,16 +351,16 @@ impl MemorySet {
     }
 }
 
-lazy_static! {
-    pub static ref KERNEL_MEMORY_SET: Arc<Mutex<MemorySet>> = {
-        let pdt_pa = PhysAddr(KERNEL_PDT_PHYS_ADDRESS);
-        let pdt_ppn = pdt_pa.phys_page_num_floor();
-        let pdt_pstub = PhysFrameStub { base_ppn: pdt_ppn, len: 1 };
-        let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
-        let pdt_vpn = pdt_vstub.base_vpn;
-        PageTable::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
-        let page_table = PageTable::from_exists(pdt_ppn, pdt_vpn);
-        // 内核的 user_stack_base 没有作用
-        Arc::new(Mutex::new(MemorySet {pdt_pstub,pdt_vstub,page_table,areas:Vec::new(),user_stack_base:0, program_headers: None }))
-    };
-}
+// lazy_static! {
+//     pub static ref KERNEL_MEMORY_SET: Arc<Mutex<MemorySet>> = {
+//         let pdt_pa = PhysAddr(KERNEL_PDT_PHYS_ADDRESS);
+//         let pdt_ppn = pdt_pa.phys_page_num_floor();
+//         let pdt_pstub = PhysFrameStub { base_ppn: pdt_ppn, len: 1 };
+//         let pdt_vstub = alloc_kernel_virt_frame(1).unwrap();
+//         let pdt_vpn = pdt_vstub.base_vpn;
+//         PageTable::static_map(pdt_vpn, pdt_ppn, PteFlags::P | PteFlags::RW);
+//         let page_table = PageTable::from_exists(pdt_ppn, pdt_vpn);
+//         // 内核的 user_stack_base 没有作用
+//         Arc::new(Mutex::new(MemorySet {pdt_pstub,pdt_vstub,page_table,areas:Vec::new(),user_stack_base:0, program_headers: None }))
+//     };
+// }

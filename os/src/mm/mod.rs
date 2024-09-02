@@ -119,7 +119,7 @@ pub fn init() {
     memory_info();
     init::init_kernel_page_table();
     heap_allocator::init();
-    let _ = KERNEL_MEMORY_SET.lock();
+    // let _ = KERNEL_MEMORY_SET.lock();
 
     // 设置用户态的全局描述符表表项
     let gdt = unsafe {

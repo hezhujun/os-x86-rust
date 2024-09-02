@@ -12,6 +12,7 @@ use switch::__switch;
 use crate::config::*;
 use crate::intr::*;
 use crate::mm::*;
+use crate::process::KERNEL_PROCESS;
 use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
 use crate::programs::PROGRAMS;
 
@@ -82,6 +83,12 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
 }
 
 pub fn init() {
+    {
+        // 初始化 KERNEL_PROCESS，不确定这段代码是否会被优化掉
+        let kernel_process = &KERNEL_PROCESS;
+        debug!("KERNEL_PROCESS PID {}", kernel_process.get_pid());
+        let _ = kernel_process.inner.lock();
+    }
     INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
 }
 

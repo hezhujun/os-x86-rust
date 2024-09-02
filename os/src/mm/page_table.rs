@@ -10,6 +10,7 @@ use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 use crate::config::*;
 use crate::mm::*;
+use crate::process::KERNEL_PROCESS;
 use crate::{arch::x86::{PageDirectoryEntry, PageTableEntry, PdeFlags, PteFlags}, config::PTE_SIZE_IN_PAGE};
 
 pub struct PageTable {
@@ -65,7 +66,8 @@ impl PageTable {
     }
 
     fn copy_kernel_space(&self) {
-        let kernel_memory_set = KERNEL_MEMORY_SET.lock();
+        let kernel_proces_inner = KERNEL_PROCESS.inner.lock();
+        let kernel_memory_set = &kernel_proces_inner.memory_set;
         let src = kernel_memory_set.page_table.pdt_vpn.get_pde_array();
         let dst = self.pdt_vpn.get_pde_array();
         for idx in 768..=1023 {
