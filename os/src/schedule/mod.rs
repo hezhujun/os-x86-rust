@@ -85,14 +85,28 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
 pub fn init() {
     {
         // 初始化 KERNEL_PROCESS，不确定这段代码是否会被优化掉
+        // 构建1号进程
         let kernel_process = &KERNEL_PROCESS;
         debug!("KERNEL_PROCESS PID {}", kernel_process.get_pid());
+        assert_eq!(kernel_process.get_pid(), 0);
         let _ = kernel_process.inner.lock();
     }
     INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
+
+    // 构建1号进程
+    let programs = PROGRAMS.lock();
 }
 
 lazy_static! {
+    static ref INITPROC_PROCESS: Arc<ProcessControlBlock> = {
+        let programs = PROGRAMS.lock();
+        let elf: &'static [u8] = programs.get("initproc").unwrap();
+        let process = ProcessControlBlock::from_elf_file(elf);
+        assert_eq!(process.get_pid(), 1);
+        process
+    };
+
+
     static ref PROCESS_LIST: Arc<Mutex<Vec<Arc<ProcessControlBlock>>>> = Arc::new(Mutex::new(Vec::new()));
 }
 
