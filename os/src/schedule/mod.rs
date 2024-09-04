@@ -137,9 +137,9 @@ pub fn do_nothing() {
 
 pub fn test() {
     let programs = PROGRAMS.lock();
-    let app_0_data = programs.get("hello_world").unwrap();
-    let app_1_data = programs.get("hello_world_a").unwrap();
-    let app_2_data = programs.get("hello_world_b").unwrap();
+    let app_0_data: &'static [u8] = programs.get("hello_world").unwrap();
+    let app_1_data: &'static [u8] = programs.get("hello_world_a").unwrap();
+    let app_2_data: &'static [u8] = programs.get("hello_world_b").unwrap();
 
     let process0 = ProcessControlBlock::from_elf_file(app_0_data);
     let task0 = {
