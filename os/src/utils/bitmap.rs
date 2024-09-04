@@ -1,4 +1,4 @@
-
+#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Bitmap<const N: usize> {
     map: [u8; N]
@@ -27,5 +27,9 @@ impl<const N: usize> Bitmap<{ N }> {
         let offset = idx % 8;
         let bit_mask = 1u8 << offset;
         self.map[index] & bit_mask != 0
+    }
+
+    pub fn reset(&mut self) {
+        self.map.iter_mut().for_each(|b| { *b = 0; })
     }
 }

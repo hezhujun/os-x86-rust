@@ -76,10 +76,9 @@ pub fn init_kernel_page_table() {
         let page_va = VirtAddr(kernel_heap_va.0 + MEMORY_PAGE_SIZE * idx);
         let page_vpn = page_va.virt_page_num_floor();
         map(page_vpn, page_ppn, false);
-        page_vpn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
     }
 
-    // alloc page for memory page bitmap
+    // alloc page for phys memory page bitmap
     let phys_frame_bitmap_pa = PhysAddr(PHYS_FRAME_BITMAP_PHYS_ADDRESS);
     let phys_frame_bitmap_va = PhysAddr(PHYS_FRAME_BITMAP_VIRT_ADDRESS);
     for idx in 0..PHYS_FRAME_BITMAP_PAGE_SIZE {
@@ -88,7 +87,6 @@ pub fn init_kernel_page_table() {
         let page_va = VirtAddr(phys_frame_bitmap_va.0 + MEMORY_PAGE_SIZE * idx);
         let page_vpn = page_va.virt_page_num_floor();
         map(page_vpn, page_ppn, false);
-        page_vpn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
     }
 
     // alloc page for kernel virt page bitmap
@@ -100,6 +98,5 @@ pub fn init_kernel_page_table() {
         let page_va = VirtAddr(kernel_virt_frame_bitmap_va.0 + MEMORY_PAGE_SIZE * idx);
         let page_vpn = page_va.virt_page_num_floor();
         map(page_vpn, page_ppn, false);
-        page_vpn.get_bytes_array().iter_mut().for_each(|b| { *b = 0 });
     }
 }
