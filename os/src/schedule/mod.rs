@@ -94,7 +94,7 @@ pub fn init() {
     INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
 
     // 构建1号进程
-    let programs = PROGRAMS.lock();
+    let _ = INITPROC_PROCESS;
 }
 
 lazy_static! {
@@ -137,9 +137,9 @@ pub fn do_nothing() {
 
 pub fn test() {
     let programs = PROGRAMS.lock();
-    let app_0_data: &'static [u8] = programs.get("hello_world").unwrap();
-    let app_1_data: &'static [u8] = programs.get("hello_world_a").unwrap();
-    let app_2_data: &'static [u8] = programs.get("hello_world_b").unwrap();
+    let app_0_data = programs.get("hello_world").unwrap();
+    let app_1_data = programs.get("hello_world_a").unwrap();
+    let app_2_data = programs.get("hello_world_b").unwrap();
 
     let process0 = ProcessControlBlock::from_elf_file(app_0_data);
     let task0 = {
@@ -185,10 +185,10 @@ pub fn test() {
     insert_into_pid2process(1, process1.clone());
     add_task(task2);
     insert_into_pid2process(2, process2.clone());
-    // add_task(task3);
-    // insert_into_pid2process(3, process3.clone());
-    // add_task(task4);
-    // insert_into_pid2process(4, process4.clone());
+    add_task(task3);
+    insert_into_pid2process(3, process3.clone());
+    add_task(task4);
+    insert_into_pid2process(4, process4.clone());
     add_task(task5);
     insert_into_pid2process(5, process5.clone());
 

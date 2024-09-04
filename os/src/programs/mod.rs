@@ -30,9 +30,9 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
 
     let mut programs = BTreeMap::new();
     programs.insert("initproc", intiproc_data);
-    programs.insert("hello_word", intiproc_data);
-    programs.insert("hello_word_a", intiproc_data);
-    programs.insert("hello_word_b", intiproc_data);
+    programs.insert("hello_world", hello_world_data);
+    programs.insert("hello_world_a", hello_world_a_data);
+    programs.insert("hello_world_b", hello_world_b_data);
     programs
 }
 
