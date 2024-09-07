@@ -13,6 +13,9 @@ pub fn init_kernel_page_table() {
     let kernel_pde_array = kernel_pdt_vpn.get_pde_array();
     let kernel_pet_begin_pa = PhysAddr(KERNEL_PDT_PHYS_ADDRESS + MEMORY_PAGE_SIZE);
 
+    // clean #0 pde
+    kernel_pde_array[0] = PageDirectoryEntry::empty();
+
     // #0-#767 pde
     for idx in 0..=767 {
         assert_eq!(kernel_pde_array[idx], PageDirectoryEntry::empty());
