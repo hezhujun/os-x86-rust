@@ -7,3 +7,5 @@ kernel.bin
 os.img
 hd60M.img
 bochs.log
+os.s
+src/link_app.S
