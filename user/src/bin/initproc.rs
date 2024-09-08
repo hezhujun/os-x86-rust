@@ -33,9 +33,9 @@ fn fork_test() {
     unsafe {
         println!("FORK_COUNT {}", FORK_COUNT);
         FORK_COUNT += 1;
-        if FORK_COUNT >= 100 {
-            return;
-        }
+        // if FORK_COUNT >= 100 {
+        //     return;
+        // }
     }
     let ret = fork();
     if ret == 0 {

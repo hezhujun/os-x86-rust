@@ -1,5 +1,6 @@
 use core::option::Option;
 use alloc::sync::Arc;
+use alloc::task;
 use alloc::vec::Vec;
 use alloc::sync::Weak;
 use spin::Mutex;
@@ -79,7 +80,15 @@ impl ProcessControlBlockInner {
 
 impl Drop for ProcessControlBlockInner {
     fn drop(&mut self) {
-        self.tasks.clear();
+        let mut tasks = Vec::new();
+        for task_option in self.tasks.iter_mut() {
+            if let Some(task) = task_option.take() {
+                tasks.push(task);
+            }
+        }
+        for task in tasks.into_iter() {
+            task.destroy(self);
+        }
         let page_table = &self.memory_set.page_table;
         for area in &mut self.memory_set.areas {
             area.unmap(page_table);

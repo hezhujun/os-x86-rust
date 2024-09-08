@@ -62,11 +62,10 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
     let cs = intr_context.cs;
     let esp = intr_context.esp;
     let ss = intr_context.ss;
-    // debug!("page_fault_intr_handler cs {:#x} eip {:#x} ss {:#x} esp {:#x} error code {} {}", cs, eip, ss, esp, error_code, IrqErrorCode(error_code));
-    // debug!("page_fault_intr_handler intr cx address {:#x}", intr_context as *const _ as usize);
     let task = current_task().unwrap();
     let process = task.process.upgrade().unwrap();
     let pid = process.get_pid();
+    assert_ne!(eip, 0, "page_fault_intr_handler cs {:#x} eip {:#x} ss {:#x} esp {:#x} error code {} {} pid {}", cs, eip, ss, esp, error_code, IrqErrorCode(error_code), pid);
     let mut process_inner = process.inner.lock();
     let mut is_repaired = process_inner.repair_page_fault();
     
@@ -78,6 +77,8 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
         // if no repair operation, something error, exit process
         assert!(false);
     }
+
+    assert_ne!(intr_context.eip, 0, "page_fault_intr_handler end with intr_context.eip=0");
 }
 
 pub fn init() {

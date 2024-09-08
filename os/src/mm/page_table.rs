@@ -203,6 +203,9 @@ impl PageTable {
             pte.set_flag(flag);
         });
         PageTable::refresh();
+        self.get_pte_ref(vpn, |pte| {
+            assert_eq!(pte.flag(), flag);
+        });
     }
 
     pub fn tmp_map<F: FnOnce(VirtPageNum)>(&self, ppn: PhysPageNum, f: F) {

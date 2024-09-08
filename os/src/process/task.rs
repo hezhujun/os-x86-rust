@@ -7,6 +7,7 @@ use crate::{intr::IntrContext, mm::MapArea};
 use crate::config::*;
 use crate::mm::*;
 use crate::utils::*;
+use super::ProcessControlBlockInner;
 use super::{context::TaskContext, process::ProcessControlBlock};
 
 #[derive(Clone, Copy, Debug)]
@@ -117,12 +118,14 @@ impl TaskControlBlock {
             kernel_stack_bottom_vpn..kernel_stack_top_vpn, 
             MapPermission::R | MapPermission::W
         );
-        kernel_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
+        let is_modified = kernel_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
+        assert!(is_modified);
 
         let mut intr_cx = task_inner.intr_cx;
         // fork 系统调用使用该方法
         // 子进程的 fork 函数返回值为0，所以 eax 设置为 0
         intr_cx.eax = 0;
+        assert_ne!(intr_cx.eip, 0);
         let task_inner = TaskControlBlockInner {
             status: task_inner.status,
             intr_cx,
@@ -143,6 +146,7 @@ impl TaskControlBlock {
     }
 
     pub fn reset(&self, entry_point: usize, page_table: &PageTable) {
+        assert_ne!(entry_point, 0);
         let mut task_inner = self.inner.lock();
 
         if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
@@ -159,10 +163,20 @@ impl TaskControlBlock {
         );
 
         let intr_context = IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address));
+        assert_ne!(intr_context.eip, 0);
         task_inner.status = TaskStatus::Ready;
         task_inner.intr_cx = intr_context;
         task_inner.user_stack_top_address = Some(user_stack_top_va);
         task_inner.user_stack_map_area = Some(user_stack_area);
+    }
+
+    pub fn destroy(&self, process_inner: &mut ProcessControlBlockInner) {
+        let mut task_inner = self.inner.lock();
+        if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
+            map_area.unmap(&mut process_inner.memory_set.page_table)
+        }
+        task_inner.kernel_stack_map_area.unmap(&mut process_inner.memory_set.page_table);
+        process_inner.tid_allocator.dealloc(self.tid);
     }
 }
 
@@ -170,13 +184,7 @@ impl Drop for TaskControlBlock {
     fn drop(&mut self) {
         if let Some(process) = self.process.upgrade() {
             let mut process_inner = process.inner.lock();
-            process_inner.tid_allocator.dealloc(self.tid);
-            let mut task_inner = self.inner.lock();
-            if let Some(mut map_area) = task_inner.user_stack_map_area.take() {
-                map_area.unmap(&mut process_inner.memory_set.page_table)
-            }
-            task_inner.kernel_stack_map_area.unmap(&mut process_inner.memory_set.page_table);
-            process_inner.tid_allocator.dealloc(self.tid);
+            self.destroy(&mut process_inner);
         }
     }
 }

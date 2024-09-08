@@ -60,6 +60,8 @@ pub fn run_tasks() {
                 asm!("mov cr3, {}", in(reg) pdt_ppn.base_address().0);
             }
             assert_eq!(pdt_ppn, PageTable::pdt_ppn());
+
+            assert_ne!(task_inner.intr_cx.eip, 0, "process {} intr_cx.eip == 0", process.get_pid());
             
             drop(process_inner);
             drop(task_inner);

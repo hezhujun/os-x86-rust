@@ -60,6 +60,12 @@ pub extern "C" fn intr_handler(mut intr_context: IntrContext) {
     assert!((intr >> 8) == 0);
     let handler = INTR_HANDLER_TABLE.lock()[intr];
     handler(&mut intr_context);
+
+    let eip = intr_context.eip;
+    let cs = intr_context.cs;
+    let ss = intr_context.ss;
+    let esp = intr_context.esp;
+    assert_ne!(eip, 0, "intr return #{}({:#x}) error code {} {} eip {:#x} cs {:#x} esp {:#x} ss {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs, esp, ss);
 }
 
 extern "C" {
@@ -71,7 +77,9 @@ fn default_intr_handler(intr_context: &mut IntrContext) {
     let error_code = intr_context.error_code;
     let eip = intr_context.eip;
     let cs = intr_context.cs;
-    debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs);
+    let ss = intr_context.ss;
+    let esp = intr_context.esp;
+    debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x} esp {:#x} ss {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs, esp, ss);
     info!("no handle intr");
     loop {}
 }
