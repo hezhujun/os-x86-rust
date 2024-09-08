@@ -50,10 +50,11 @@ pub const THREAD_ID_BITMAP_SIZE: usize = 1000;
 
 pub const HIGH_ADDRESS_BASE: usize = 0xc0000000;
 pub const KERNEL_STACK_TOP_VIRT_ADDRESS: usize = 0xffc00000;
-pub const KERNEL_STACK_SIZE: usize = 0x10000;
-pub const KERNEL_STACK_PAGE_SIZE: usize = KERNEL_STACK_SIZE >> 12;
+pub const KERNEL_STACK_PAGE_SIZE: usize = 10;
+pub const KERNEL_STACK_SIZE: usize = KERNEL_STACK_PAGE_SIZE << 12;
 pub const USER_STACK_TOP_VIRT_ADDRESS: usize = 0xc0000000;
-pub const USER_STACK_SIZE: usize = 0x10000;
+pub const USER_STACK_PAGE_SIZE: usize = 0x10;
+pub const USER_STACK_SIZE: usize = USER_STACK_PAGE_SIZE << 12;
 
 pub const GDT_SIZE: usize = 512 / 8;
 pub const RPL0: u8 = 0b00;

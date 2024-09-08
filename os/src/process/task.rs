@@ -72,9 +72,9 @@ impl TaskControlBlock {
         };
         
         // kernel stack
-        let kernel_stack_vstub = alloc_kernel_virt_frame(KERNEL_STACK_PAGE_SIZE + 1).unwrap();
+        let kernel_stack_vstub = alloc_kernel_virt_frame(KERNEL_STACK_PAGE_SIZE + 2).unwrap();
         let kernel_stack_bottom_vpn = VirtPageNum(kernel_stack_vstub.base_vpn.0 + 1);
-        let kernel_stack_top_vpn = VirtPageNum(kernel_stack_vstub.base_vpn.0 + kernel_stack_vstub.len);
+        let kernel_stack_top_vpn = VirtPageNum(kernel_stack_bottom_vpn.0 + KERNEL_STACK_PAGE_SIZE);
         let mut kernel_stack_area = MapArea::new(
             kernel_stack_bottom_vpn..kernel_stack_top_vpn, 
             MapPermission::R | MapPermission::W
@@ -111,9 +111,9 @@ impl TaskControlBlock {
         };
         
         // kernel stack
-        let kernel_stack_vstub = alloc_kernel_virt_frame(KERNEL_STACK_PAGE_SIZE + 1).unwrap();
+        let kernel_stack_vstub = alloc_kernel_virt_frame(KERNEL_STACK_PAGE_SIZE + 2).unwrap();
         let kernel_stack_bottom_vpn = VirtPageNum(kernel_stack_vstub.base_vpn.0 + 1);
-        let kernel_stack_top_vpn = VirtPageNum(kernel_stack_vstub.base_vpn.0 + kernel_stack_vstub.len);
+        let kernel_stack_top_vpn = VirtPageNum(kernel_stack_bottom_vpn.0 + KERNEL_STACK_PAGE_SIZE);
         let mut kernel_stack_area = MapArea::new(
             kernel_stack_bottom_vpn..kernel_stack_top_vpn, 
             MapPermission::R | MapPermission::W
