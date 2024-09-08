@@ -25,9 +25,17 @@ fn syscall_intr_handler(intr_context: &mut IntrContext) {
         task_inner.intr_cx = *intr_context;
     }
 
+    // debug!("syscall_intr_handler {}", syscall_id);
+
     let ret = match syscall_id {
         SYSCALL_WRITE => sys_write(param1, param2 as *const u8, param3),
         SYSCALL_EXIT => sys_exit((param1 as isize).try_into().unwrap()),
+        SYSCALL_SLEEP => sys_sleep(),
+        SYSCALL_YIELD => sys_yield(),
+        SYSCALL_GETPID => sys_getpid(),
+        SYSCALL_FORK => sys_fork(),
+        SYSCALL_EXEC => sys_exec(param1 as *const u8, param2 as *const usize, intr_context),
+        SYSCALL_WAITPID => sys_waitpid(param1 as isize, param2 as *mut isize),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     };
 

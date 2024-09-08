@@ -47,7 +47,11 @@ impl ProcessControlBlockInner {
                     for ph in phs {
                         let src = &elf_data[ph.file_offset..(ph.file_offset + ph.file_size)];
                         let dst = unsafe { core::slice::from_raw_parts_mut(ph.virtual_addr as *mut u8, ph.mem_size) };
-                        dst.copy_from_slice(src);
+                        if ph.file_size == ph.mem_size {
+                            dst.copy_from_slice(src);
+                        } else {
+                            dst.iter_mut().for_each(|b| *b = 0);
+                        }
                     }
                 }
                 for area in &self.memory_set.areas {
@@ -70,6 +74,17 @@ impl ProcessControlBlockInner {
         assert!(is_modified);
 
         is_modified
+    }
+}
+
+impl Drop for ProcessControlBlockInner {
+    fn drop(&mut self) {
+        self.tasks.clear();
+        let page_table = &self.memory_set.page_table;
+        for area in &mut self.memory_set.areas {
+            area.unmap(page_table);
+        }
+        self.memory_set.areas.clear();
     }
 }
 
@@ -163,6 +178,7 @@ impl ProcessControlBlock {
         let mut process_inner = self.inner.lock();
         assert!(process_inner.tasks.len() == 1);
 
+        process_inner.elf_data = None;
         let entry_point = process_inner.memory_set.reset_from_elf(elf_data);
         
         if let Some(task_option) = process_inner.tasks.first() {

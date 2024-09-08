@@ -48,7 +48,6 @@ pub fn exit_current_and_run_next(exit_code: isize) -> ! {
         let mut process_inner = process.inner.lock();
         process_inner.exit_code = exit_code;
         process_inner.is_zombie = true;
-        debug!("process {} exit", pid);
     }
     drop(process);
     let mut _unused = TaskContext::empty();
@@ -66,7 +65,6 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
             let pid = process.get_pid();
             let mut process_inner = process.inner.lock();
             let mut is_repaired = process_inner.repair_page_fault();
-            debug!("repaired process area");
 
             let memory_set = &mut process_inner.memory_set;
             let page_table = &mut memory_set.page_table;
@@ -85,16 +83,21 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
 pub fn init() {
     {
         // 初始化 KERNEL_PROCESS，不确定这段代码是否会被优化掉
-        // 构建1号进程
+        // 构建 0 号进程
         let kernel_process = &KERNEL_PROCESS;
-        debug!("KERNEL_PROCESS PID {}", kernel_process.get_pid());
         assert_eq!(kernel_process.get_pid(), 0);
-        let _ = kernel_process.inner.lock();
+    }
+    {
+        // 构建 1 号进程
+        let initproc = &INITPROC_PROCESS;
+        let task = {
+            let inner = initproc.inner.lock();
+            inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
+        };
+        add_task(task);
+        insert_into_pid2process(initproc.get_pid(), INITPROC_PROCESS.clone());
     }
     INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
-
-    // 构建1号进程
-    let _ = INITPROC_PROCESS;
 }
 
 lazy_static! {
@@ -102,8 +105,10 @@ lazy_static! {
         let programs = PROGRAMS.lock();
         let elf: &'static [u8] = programs.get("initproc").unwrap();
         let process = ProcessControlBlock::from_elf_file(elf);
+        let mut inner = process.inner.lock();
+        inner.elf_data = Some(elf);
         assert_eq!(process.get_pid(), 1);
-        process
+        process.clone()
     };
 
 

@@ -99,10 +99,15 @@ impl MapArea {
                     if is_need_remap {
                         let frame = alloc_phys_frame(1).unwrap();
                         let ppn = frame.base_ppn;
+                        page_table.tmp_map(ppn, |new_vpn| {
+                            new_vpn.as_byte_array_mut().copy_from_slice(vpn.as_byte_array_ref());
+                        });
                         page_table.remap_for_fork_process(vpn, ppn, self.map_perm.into());
                         self.data_frames.insert(vpn, Arc::new(frame));
                     }
                     is_modified = true;
+                } else {
+                    debug!("copy_if_need vpn {:#x} ppn {:#x} is writable", vpn.base_address().0, page_table.get_vpn_phys_address(vpn).unwrap().0);
                 }
             }
         }
@@ -168,7 +173,7 @@ pub struct MemorySet {
 
 impl Drop for MemorySet {
     fn drop(&mut self) {
-        self.page_table.unmap(self.pdt_vstub.base_vpn);
+        PageTable::static_unmap(self.pdt_vstub.base_vpn);
     }
 }
 

@@ -78,14 +78,14 @@ impl VirtPageNum {
     }
 
     pub fn as_ref<T: Sized>(&self) -> &T {
-        assert!(core::mem::size_of::<T>() < MEMORY_PAGE_SIZE);
+        assert!(core::mem::size_of::<T>() <= MEMORY_PAGE_SIZE);
         unsafe {
             (self.base_address().0 as *const T).as_ref().unwrap()
         }
     }
 
     pub fn as_mut<T: Sized>(&self) -> &mut T {
-        assert!(core::mem::size_of::<T>() < MEMORY_PAGE_SIZE);
+        assert!(core::mem::size_of::<T>() <= MEMORY_PAGE_SIZE);
         unsafe {
             (self.base_address().0 as *mut T).as_mut().unwrap()
         }

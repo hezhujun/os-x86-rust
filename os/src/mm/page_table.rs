@@ -78,8 +78,9 @@ impl PageTable {
     pub fn static_map(vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
         let index2 = vpn.0 & 0x3ff;
         let index1 = (vpn.0 >> 10)& 0x3ff;
-        let pde_array = Self::pdt_vpn().get_pde_array();
-        let pde = &mut pde_array[index1];
+        let pdt_vpn = Self::pdt_vpn();
+        let pde_array = pdt_vpn.as_pde_array_ref();
+        let pde = &pde_array[index1];
         assert!(pde.flag().contains(PdeFlags::P));
         let address = 0x3ffusize << 22 | index1 << 12;
         let second_vpn: VirtPageNum = VirtAddr(address).into();
@@ -88,6 +89,23 @@ impl PageTable {
         assert_eq!(pte.flag().contains(PteFlags::P), false);
         let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), flag);
         *pte = new_entry;
+        PageTable::refresh();
+    }
+
+    pub fn static_unmap(vpn: VirtPageNum) {
+        let index2 = vpn.0 & 0x3ff;
+        let index1 = (vpn.0 >> 10)& 0x3ff;
+        let pdt_vpn = Self::pdt_vpn();
+        let pde_array = pdt_vpn.as_pde_array_ref();
+        let pde = &pde_array[index1];
+        assert!(pde.flag().contains(PdeFlags::P));
+        let address = 0x3ffusize << 22 | index1 << 12;
+        let second_vpn: VirtPageNum = VirtAddr(address).into();
+        let pte_array = second_vpn.as_pte_array_mut();
+        let pte = &mut pte_array[index2];
+        assert!(pte.flag().contains(PteFlags::P));
+        *pte = PageTableEntry::empty();
+        PageTable::refresh();
     }
 
     pub fn map(&self, vpn: VirtPageNum, ppn: PhysPageNum, flag: PteFlags) {
@@ -97,6 +115,7 @@ impl PageTable {
             let new_entry = PageTableEntry::new(ppn.base_address().0.try_into().unwrap(), flag);
             *pte = new_entry;
         });
+        PageTable::refresh();
         assert!(self.is_pte_present(vpn));
         assert_eq!(ppn, self.get_ppn(vpn));
     }
@@ -156,6 +175,9 @@ impl PageTable {
                     let dst = vpn.as_byte_array_mut();
                     dst.copy_from_slice(src);
                 });
+                self.get_pde_mut(vpn, |pde| {
+                    *pde = new_entry;
+                });
                 self.frames.insert(pde_index, Arc::new(frame));
             }
         } else {
@@ -169,6 +191,7 @@ impl PageTable {
         self.get_pte_mut(vpn, |pte| {
             *pte = PageTableEntry::empty();
         });
+        PageTable::refresh();
         self.get_pte_ref(vpn, |pte| {
             assert!(!pte.flag().contains(PteFlags::P));
         });
@@ -184,12 +207,8 @@ impl PageTable {
     pub fn tmp_map<F: FnOnce(VirtPageNum)>(&self, ppn: PhysPageNum, f: F) {
         let virt_frame_stub = alloc_kernel_virt_frame(1).unwrap();
         self.map(virt_frame_stub.base_vpn, ppn, PteFlags::P | PteFlags::RW);
-        // attention!
-        // force refresh page table
-        PageTable::refresh();
         f(virt_frame_stub.base_vpn);
         self.unmap(virt_frame_stub.base_vpn);
-        PageTable::refresh();
     }
 
     pub fn get_pde_ref<F: FnOnce(&PageDirectoryEntry)>(&self, vpn: VirtPageNum, f: F) {
@@ -368,6 +387,14 @@ impl VirtPageNum {
     }
 
     pub fn as_pde_array_mut(&self) -> &mut [PageDirectoryEntry; PTE_SIZE_IN_PAGE] {
+        self.as_mut()
+    }
+
+    pub fn as_pte_array_ref(&self) -> &[PageTableEntry; PTE_SIZE_IN_PAGE] {
+        self.as_ref()
+    }
+
+    pub fn as_pte_array_mut(&self) -> &mut [PageTableEntry; PTE_SIZE_IN_PAGE] {
         self.as_mut()
     }
 
