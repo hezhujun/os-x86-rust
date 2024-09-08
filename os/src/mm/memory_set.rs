@@ -106,8 +106,6 @@ impl MapArea {
                         self.data_frames.insert(vpn, Arc::new(frame));
                     }
                     is_modified = true;
-                } else {
-                    debug!("copy_if_need vpn {:#x} ppn {:#x} is writable", vpn.base_address().0, page_table.get_vpn_phys_address(vpn).unwrap().0);
                 }
             }
         }

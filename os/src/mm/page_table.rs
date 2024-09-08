@@ -202,6 +202,7 @@ impl PageTable {
         self.get_pte_mut(vpn, |pte| {
             pte.set_flag(flag);
         });
+        PageTable::refresh();
     }
 
     pub fn tmp_map<F: FnOnce(VirtPageNum)>(&self, ppn: PhysPageNum, f: F) {

@@ -28,7 +28,7 @@ pub struct TaskControlBlockInner {
 
 impl TaskControlBlockInner {
     pub fn repair_page_fault(&mut self, page_table: &mut PageTable) -> bool {
-        let mut is_modified = self.kernel_stack_map_area.map_if_need(page_table);
+        let mut is_modified = false;
         if let Some(user_stack_map_area) = self.user_stack_map_area.as_mut() {
             is_modified |= user_stack_map_area.map_if_need(page_table);
 

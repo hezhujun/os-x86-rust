@@ -60,24 +60,24 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
     let error_code = intr_context.error_code;
     let eip = intr_context.eip;
     let cs = intr_context.cs;
-    if let Some(task) = current_task() {
-        if let Some(process) = task.process.upgrade() {
-            let pid = process.get_pid();
-            let mut process_inner = process.inner.lock();
-            let mut is_repaired = process_inner.repair_page_fault();
-
-            let memory_set = &mut process_inner.memory_set;
-            let page_table = &mut memory_set.page_table;
-            let mut task_inner = task.inner.lock();
-            is_repaired |= task_inner.repair_page_fault(page_table);
-            if !is_repaired {
-                // if no repair operation, something error, exit process
-                assert!(false);
-            }
-            return
-        }
+    let esp = intr_context.esp;
+    let ss = intr_context.ss;
+    // debug!("page_fault_intr_handler cs {:#x} eip {:#x} ss {:#x} esp {:#x} error code {} {}", cs, eip, ss, esp, error_code, IrqErrorCode(error_code));
+    // debug!("page_fault_intr_handler intr cx address {:#x}", intr_context as *const _ as usize);
+    let task = current_task().unwrap();
+    let process = task.process.upgrade().unwrap();
+    let pid = process.get_pid();
+    let mut process_inner = process.inner.lock();
+    let mut is_repaired = process_inner.repair_page_fault();
+    
+    let memory_set = &mut process_inner.memory_set;
+    let page_table = &mut memory_set.page_table;
+    let mut task_inner = task.inner.lock();
+    is_repaired |= task_inner.repair_page_fault(page_table);
+    if !is_repaired {
+        // if no repair operation, something error, exit process
+        assert!(false);
     }
-    panic!("no process");
 }
 
 pub fn init() {
