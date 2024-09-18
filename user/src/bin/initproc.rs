@@ -24,7 +24,6 @@ fn main() -> isize {
             pid,
             exit_code,
         );
-        fork_test();
     }
     0
 }
