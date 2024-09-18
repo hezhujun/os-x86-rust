@@ -4,6 +4,7 @@ use super::INTR_HANDLER_TABLE;
 use crate::arch::x86::pic;
 use crate::arch::x86::outb;
 use crate::schedule::suspend_current_and_run_next;
+use crate::drivers::keyboard::handle_keyboard_intr;
 
 /// 主片的控制端口
 const PIC_M_CTRL: u16 = 0x20;
@@ -34,7 +35,7 @@ pub fn init() {
     outb(PIC_S_DATA, pic::ICW4::uPM.bits());  // ICW4: 8086 模式，正常 EOI
 
     // 只打开时钟中断
-    outb(PIC_M_DATA, 0xfe);
+    outb(PIC_M_DATA, 0xfd);
     outb(PIC_S_DATA, 0xff);
 
     register_pic_intr();
@@ -43,7 +44,7 @@ pub fn init() {
 fn register_pic_intr() {
     let mut intr_handler_table = INTR_HANDLER_TABLE.lock();
     intr_handler_table[IrqType::TIME as usize] = time_intr_handler;
-    intr_handler_table[IrqType::KEYBOARD as usize] = pic_master_intr_handler;
+    intr_handler_table[IrqType::KEYBOARD as usize] = keyboard_intr_handler;
     intr_handler_table[IrqType::IRQ_0X22 as usize] = pic_master_intr_handler;
     intr_handler_table[IrqType::IRQ_0X23 as usize] = pic_master_intr_handler;
     intr_handler_table[IrqType::IRQ_0X24 as usize] = pic_master_intr_handler;
@@ -66,6 +67,12 @@ fn time_intr_handler(intr_context: &mut IntrContext) {
     outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
 
     suspend_current_and_run_next();
+}
+
+fn keyboard_intr_handler(intr_context: &mut IntrContext) {
+    handle_keyboard_intr();
+    assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+    outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
 }
 
 fn pic_master_intr_handler(intr_context: &mut IntrContext) {

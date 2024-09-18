@@ -52,6 +52,7 @@ pub fn main() -> ! {
     let _ = logger::init();
     info!("Hello world!");
     mm::init();
+    drivers::init();
     intr::init();
     syscall::init();
     schedule::init();
