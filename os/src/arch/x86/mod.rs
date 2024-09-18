@@ -6,6 +6,7 @@ mod register;
 mod pte;
 mod gate_descriptor;
 pub mod pic;
+mod port;
 
 use core::arch::asm;
 pub use model::*;
@@ -14,6 +15,7 @@ pub use screen::*;
 pub use register::*;
 pub use pte::*;
 pub use gate_descriptor::*;
+pub use port::*;
 
 
 pub fn outb(port: u16, value: u8) {
