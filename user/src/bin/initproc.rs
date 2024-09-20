@@ -10,8 +10,7 @@ static mut FORK_COUNT: isize = 0;
 
 #[no_mangle]
 fn main() -> isize {
-    println!("[initproc] pid {}", getpid());
-    fork_test();
+    let mut shell_pid = exec_shell();
     loop {
         let mut exit_code: isize = 0;
         let pid = wait(&mut exit_code);
@@ -24,24 +23,27 @@ fn main() -> isize {
             pid,
             exit_code,
         );
+        if pid == shell_pid {
+            shell_pid = exec_shell();
+        }
     }
     0
 }
 
-fn fork_test() {
-    unsafe {
-        println!("FORK_COUNT {}", FORK_COUNT);
-        FORK_COUNT += 1;
-        // if FORK_COUNT >= 100 {
-        //     return;
-        // }
-    }
-    let ret = fork();
-    if ret == 0 {
-        println!("I am child process pid {}", getpid());
-        
-        exec("hello_world\0", &[]);
-        assert!(false);
+fn exec_shell() -> isize {
+    let shell_pid = fork();
+    if shell_pid < 0 {
+        println!("run user_shell error in fork() {}", shell_pid);
         loop {}
+    }
+    if shell_pid == 0 {
+        let ret = exec("user_shell\0", &[core::ptr::null::<u8>()]);
+        if ret != 0 {
+            println!("run user_shell error in exec() {}", ret);
+            loop {}
+        }
+        0
+    } else {
+        shell_pid
     }
 }
