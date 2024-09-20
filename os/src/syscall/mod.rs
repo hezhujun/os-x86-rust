@@ -28,6 +28,7 @@ fn syscall_intr_handler(intr_context: &mut IntrContext) {
     // debug!("syscall_intr_handler {}", syscall_id);
 
     let ret = match syscall_id {
+        SYSCALL_READ => sys_read(param1, param2 as *mut u8, param3),
         SYSCALL_WRITE => sys_write(param1, param2 as *const u8, param3),
         SYSCALL_EXIT => sys_exit((param1 as isize).try_into().unwrap()),
         SYSCALL_SLEEP => sys_sleep(),

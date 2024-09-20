@@ -12,7 +12,7 @@ pub struct KeyboardDriver {
     pub is_left_alt_pressed: bool,
     pub is_right_alt_pressed: bool,
 
-    char_buffer: RingBuffer<char, 10>,
+    char_buffer: RingBuffer<u8, 10>,
 }
 
 impl KeyboardDriver {
@@ -26,7 +26,7 @@ impl KeyboardDriver {
             is_right_ctrl_pressed: false, 
             is_left_alt_pressed: false, 
             is_right_alt_pressed: false, 
-            char_buffer: RingBuffer::new('\0'),
+            char_buffer: RingBuffer::new('\0' as u8),
         }
     }
 }
@@ -48,10 +48,7 @@ impl KeyboardDriver {
         if self.char_buffer.is_full() {
             self.char_buffer.pop();
         }
-        self.char_buffer.push(c);
-        if let Some(c) = self.char_buffer.pop() {
-            print!("{}", c);
-        }
+        self.char_buffer.push(c as u8);
     }
 
     fn finish_input(&mut self) {
@@ -59,7 +56,7 @@ impl KeyboardDriver {
         self.size = 0;
     }
 
-    pub fn pop(&mut self) -> Option<char> {
+    pub fn pop(&mut self) -> Option<u8> {
         self.char_buffer.pop()
     }
 
@@ -83,43 +80,43 @@ impl KeyboardDriver {
             0x01 => {
                 // ESC pressed
                 self.finish_input();
-            },
+            }
             0x81 => {
                 // ESC released
                 self.finish_input();
-            },
+            }
             0x2a => {
                 self.is_left_shift_pressed = true;
                 self.finish_input();
-            },
+            }
             0xaa => {
                 self.is_left_shift_pressed = false;
                 self.finish_input();
-            },
+            }
             0x36 => {
                 self.is_right_shift_pressed = true;
                 self.finish_input();
-            },
+            }
             0xb6 => {
                 self.is_right_shift_pressed = false;
                 self.finish_input();
-            },
+            }
             0x1d => {
                 self.is_left_ctrl_pressed = true;
                 self.finish_input();
-            },
+            }
             0x9d => {
                 self.is_left_ctrl_pressed = false;
                 self.finish_input();
-            },
+            }
             0x38 => {
                 self.is_left_alt_pressed = true;
                 self.finish_input();
-            },
+            }
             0xb8 => {
                 self.is_left_alt_pressed = false;
                 self.finish_input();
-            },
+            }
             0x02..=0x1c | 0x1e..=0x29 | 0x2b..=0x35 => {
                 if self.is_shift_pressed() {
                     let c = KEY_MAP[self.scan_codes[0] as usize - 0x02][1];
@@ -129,172 +126,172 @@ impl KeyboardDriver {
                     self.push_char(c);
                 }
                 self.finish_input();
-            },
+            }
             0x82..=0x9c | 0x9e..=0xa9 | 0xab..=0xb5 => {
                 // released
                 self.finish_input();
-            },
+            }
             0x39 => {
                 // space passed
                 self.push_char(' ');
                 self.finish_input();
 
-            },
+            }
             0xb9 => {
                 // space released
                 self.finish_input();
-            },
+            }
             0x37 => {
                 self.push_char('*');
                 self.finish_input();
-            },
+            }
             0xb7 => {
                 self.finish_input();
-            },
+            }
             0x3a => {
                 // caps lock pressed
                 self.finish_input();
-            },
+            }
             0xba => {
                 // caps lock released
                 self.finish_input();
-            },
+            }
             0x3b..=0x44 | 0x57..=0x58 => {
                 // F1-F12 pressed
                 self.finish_input();
-            },
+            }
             0xbb..=0xc4 | 0xd7..=0xd8 => {
                 // F1-F12 released
                 self.finish_input();
-            },
+            }
             0x45 => {
                 // num lock pressed
                 self.finish_input();
-            },
+            }
             0xc5 => {
                 // num lock released
                 self.finish_input();
-            },
+            }
             0x46 => {
                 // scroll lock pressed
                 self.finish_input();
-            },
+            }
             0xc6 => {
                 // scroll lock released
                 self.finish_input();
-            },
+            }
             0x47 => {
                 // 7home pressed
                 self.finish_input();
-            },
+            }
             0xc7 => {
                 // 7home released
                 self.finish_input();
-            },
+            }
             0x48 => {
                 // 8up pressed
                 self.finish_input();
-            },
+            }
             0xc8 => {
                 // 8up released
                 self.finish_input();
-            },
+            }
             0x49 => {
                 // 9PgUp pressed
                 self.finish_input();
-            },
+            }
             0xc9 => {
                 // 9PgUp released
                 self.finish_input();
-            },
+            }
             0x4a => {
                 // - pressed
                 self.push_char('-');
                 self.finish_input();
-            },
+            }
             0xca => {
                 // - released
                 self.finish_input();
-            },
+            }
             0x4b => {
                 // 4left pressed
                 self.finish_input();
-            },
+            }
             0xcb => {
                 // 4left released
                 self.finish_input();
-            },
+            }
             0x4c => {
                 // 5 pressed
                 self.finish_input();
-            },
+            }
             0xcc => {
                 // 5 released
                 self.finish_input();
-            },
+            }
             0x4d => {
                 // 6right pressed
                 self.finish_input();
-            },
+            }
             0xcd => {
                 // 6right released
                 self.finish_input();
-            },
+            }
             0x4e => {
                 // + pressed
                 self.push_char('+');
                 self.finish_input();
-            },
+            }
             0xce => {
                 // + released
                 self.finish_input();
-            },
+            }
             0x4f => {
                 // end pressed
                 self.finish_input();
-            },
+            }
             0xcf => {
                 // end released
                 self.finish_input();
-            },
+            }
             0x50 => {
                 // 2down pressed
                 self.finish_input();
-            },
+            }
             0xd0 => {
                 // 2down released
                 self.finish_input();
-            },
+            }
             0x51 => {
                 // 3PgDn pressed
                 self.finish_input();
-            },
+            }
             0xd1 => {
                 // 3PgDn released
                 self.finish_input();
-            },
+            }
             0x52 => {
                 // 0Ins pressed
                 self.finish_input();
-            },
+            }
             0xd2 => {
                 // 0Ins released
                 self.finish_input();
-            },
+            }
             0x53 => {
                 // .del pressed
                 self.finish_input();
-            },
+            }
             0xd3 => {
                 // .del released
                 self.finish_input();
-            },
+            }
             0xe0 => {
                 self.parse_ext_scan_code();
-            },
+            }
             _ => {
                 assert!(false, "Unhandle scan code {}", self.scan_codes[0]);
-            },
+            }
         }
     }
 
@@ -303,100 +300,100 @@ impl KeyboardDriver {
             KEY_RIGHT_ALT_PRESSED => {
                 self.is_right_alt_pressed = true;
                 self.finish_input();
-            },
+            }
             KEY_RIGHT_ALT_RELEASED => {
                 self.is_right_alt_pressed = false;
                 self.finish_input();
-            },
+            }
             KEY_RIGHT_CTRL_PRESSED => {
                 self.is_right_ctrl_pressed = true;
                 self.finish_input();
-            },
+            }
             KEY_RIGHT_CTRL_RELEASED => {
                 self.is_right_ctrl_pressed = false;
                 self.finish_input();
-            },
+            }
             KEY_PRINT_SCREEN_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_PRINT_SCREEN_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_PAUSE_BREAK_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_INSERT_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_INSERT_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_FORWARD_SLASH_EXT_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_FORWARD_SLASH_EXT_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_HOME_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_HOME_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_PAGE_UP_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_PAGE_UP_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_DELETE_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_DELETE_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_END_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_END_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_PAGE_DOWN_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_PAGE_DOWN_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_LEFT_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_LEFT_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_RIGHT_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_RIGHT_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_UP_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_UP_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_DOWN_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_DOWN_RELEASED => {
                 self.finish_input();
-            },
+            }
             KEY_ENTER_EXT_PRESSED => {
                 self.finish_input();
-            },
+            }
             KEY_ENTER_EXT_RELEASED => {
                 self.finish_input();
-            },
+            }
             _ => {
                 if self.size == 6 {
                     assert!(false);

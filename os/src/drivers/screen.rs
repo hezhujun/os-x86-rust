@@ -101,7 +101,14 @@ impl Screen {
                 }
             }
             '\n' => self.line_break(),
-            _ => {},
+            '\x08' => {
+                // BS
+                let cursor = get_screen_cursor_position();
+                if cursor > 0 {
+                    self.subtract_cursor_position(cursor - 1);
+                }
+            }
+            _ => {}
         }
     }
 

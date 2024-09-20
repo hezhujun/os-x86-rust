@@ -17,3 +17,8 @@ pub fn handle_keyboard_intr() {
     let mut keyboard = KEYBOARD_DRIVER.lock();
     keyboard.handle_intr();
 }
+
+pub fn get_char() -> Option<u8> {
+    let mut keyboard = KEYBOARD_DRIVER.lock();
+    keyboard.pop()
+}
