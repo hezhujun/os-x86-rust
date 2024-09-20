@@ -109,6 +109,7 @@ lazy_static! {
         let begin_ppn = PhysPageNum::from(PhysAddr(FREE_PHYS_FRAME_BEGIN_ADDRESS));
         let end_ppn = MEMORY_INFO.get_frame_space_end();
         let bitmap = unsafe { (PHYS_FRAME_BITMAP_VIRT_ADDRESS as *mut Bitmap<PHYS_FRAME_BITMAP_SIZE>).as_mut().unwrap() };
+        bitmap.reset();
         Arc::new(Mutex::new(SimpleAllocator::new(bitmap, 0, begin_ppn.0, end_ppn.0, begin_ppn.0)))
     };
 
@@ -116,6 +117,7 @@ lazy_static! {
         let begin_vpn = VirtPageNum::from(VirtAddr(FREE_KERNEL_VIRT_FRAME_BEGIN_ADDRESS));
         let end_vpn = VirtPageNum::from(VirtAddr(FREE_KERNEL_VIRT_FRAME_END_ADDRESS));
         let bitmap = unsafe { (KERNEL_VIRT_FRAME_BITMAP_VIRT_ADDRESS as *mut Bitmap<KERNEL_VIRT_FRAME_BITMAP_SIZE>).as_mut().unwrap() };
+        bitmap.reset();
         Arc::new(Mutex::new(SimpleAllocator::new(bitmap, HIGH_ADDRESS_BASE >> 12, begin_vpn.0, end_vpn.0, begin_vpn.0)))
     };
 }

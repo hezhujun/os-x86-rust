@@ -72,16 +72,63 @@ impl VirtPageNum {
     }
 }
 
+impl VirtPageNum {
+    pub fn offset(&self, offset: usize) -> VirtAddr {
+        VirtAddr(self.base_address().0 + offset)
+    }
 
-impl PhysPageNum {
-    pub fn get_bytes_array(&self) -> &'static mut [u8] {
+    pub fn as_ref<T: Sized>(&self) -> &T {
+        assert!(core::mem::size_of::<T>() <= MEMORY_PAGE_SIZE);
         unsafe {
-            core::slice::from_raw_parts_mut(self.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
+            (self.base_address().0 as *const T).as_ref().unwrap()
         }
     }
-}
 
-impl VirtPageNum {
+    pub fn as_mut<T: Sized>(&self) -> &mut T {
+        assert!(core::mem::size_of::<T>() <= MEMORY_PAGE_SIZE);
+        unsafe {
+            (self.base_address().0 as *mut T).as_mut().unwrap()
+        }
+    }
+
+    pub fn as_byte_array_ref(&self) -> &[u8; MEMORY_PAGE_SIZE] {
+        unsafe {
+            (self.base_address().0 as *const [u8; MEMORY_PAGE_SIZE]).as_ref().unwrap()
+        }
+    }
+
+    pub fn as_byte_array_mut(&self) -> &mut [u8; MEMORY_PAGE_SIZE] {
+        unsafe {
+            (self.base_address().0 as *mut [u8; MEMORY_PAGE_SIZE]).as_mut().unwrap()
+        }
+    }
+
+    pub fn get_ref<T: Sized, F: for<'a> FnOnce(&'a T) -> ()>(&self, offset: usize, f: F) {
+        if offset + core::mem::size_of::<T>() > MEMORY_PAGE_SIZE {
+            return;
+        }
+        let address = self.base_address().0 + offset;
+        let value = unsafe { (address as *const T).as_ref() }.unwrap();
+        f(value);
+    }
+
+    pub fn get_mut<T: Sized, F: for<'a> FnOnce(&'a mut T) -> ()>(&self, offset: usize, f: F) {
+        if offset + core::mem::size_of::<T>() > MEMORY_PAGE_SIZE {
+            return;
+        }
+        let address = self.base_address().0 + offset;
+        let value = unsafe { (address as *mut T).as_mut() }.unwrap();
+        f(value);
+    }
+
+    pub fn get_bytes_array_ref<F: for<'a> FnOnce(&'a [u8; MEMORY_PAGE_SIZE]) -> ()>(&self, f: F) {
+        self.get_ref(0, f);
+    }
+
+    pub fn get_bytes_array_mut<F: for<'a> FnOnce(&'a mut [u8; MEMORY_PAGE_SIZE]) -> ()>(&self, f: F) {
+        self.get_mut(0, f);
+    }
+
     pub fn get_bytes_array(&self) -> &'static mut [u8] {
         unsafe {
             core::slice::from_raw_parts_mut(self.base_address().0 as *mut u8, MEMORY_PAGE_SIZE)
@@ -96,7 +143,13 @@ impl VirtPageNum {
 }
 
 impl VirtAddr {
-    pub fn as_mut_ref<T>(&self) -> &mut T {
+    pub fn as_ref<T>(&self) -> &T {
+        unsafe {
+            (self.0 as *const T).as_ref().unwrap()
+        }
+    }
+
+    pub fn as_mut<T>(&self) -> &mut T {
         unsafe {
             (self.0 as *mut T).as_mut().unwrap()
         }

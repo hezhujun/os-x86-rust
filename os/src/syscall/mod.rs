@@ -1,8 +1,12 @@
 mod define;
+mod process;
+mod io;
 
-pub use define::*;
+use define::*;
+use process::*;
+use io::*;
 
-use crate::intr::{set_ldt_entry, IntrContext, INTR_HANDLER_TABLE};
+use crate::{intr::{set_ldt_entry, IntrContext, INTR_HANDLER_TABLE}, schedule::current_task};
 
 
 pub fn init() {
@@ -10,36 +14,31 @@ pub fn init() {
     set_ldt_entry(0x80, 0b11);
 }
 
-fn syscall_intr_handler(intr_context: IntrContext) {
+fn syscall_intr_handler(intr_context: &mut IntrContext) {
     let syscall_id = intr_context.eax;
     let param1 = intr_context.ebx;
     let param2 = intr_context.ecx;
     let param3 = intr_context.edx;
 
+    if let Some(task) = current_task() {
+        let mut task_inner = task.inner.lock();
+        task_inner.intr_cx = *intr_context;
+    }
+
+    // debug!("syscall_intr_handler {}", syscall_id);
+
     let ret = match syscall_id {
+        SYSCALL_READ => sys_read(param1, param2 as *mut u8, param3),
         SYSCALL_WRITE => sys_write(param1, param2 as *const u8, param3),
-        SYSCALL_EXIT=> sys_exit(param1 as isize),
+        SYSCALL_EXIT => sys_exit((param1 as isize).try_into().unwrap()),
+        SYSCALL_SLEEP => sys_sleep(),
+        SYSCALL_YIELD => sys_yield(),
+        SYSCALL_GETPID => sys_getpid(),
+        SYSCALL_FORK => sys_fork(),
+        SYSCALL_EXEC => sys_exec(param1 as *const u8, param2 as *const usize, intr_context),
+        SYSCALL_WAITPID => sys_waitpid(param1 as isize, param2 as *mut isize),
+        _ => panic!("Unsupported syscall_id: {}", syscall_id),
     };
-}
 
-fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
-    match fd {
-        1 => {
-            let text = unsafe { 
-                let v = core::slice::from_raw_parts(buf, len);
-                core::str::from_utf8_unchecked(v)
-            };
-            crate::drivers::Screen.print(text);
-            len as isize
-        }
-        _ => {
-            panic!("Unsupported fd in sys_write!");
-        }
-    }
-}
-
-fn sys_exit(exit_code: isize) -> ! {
-    debug!("sys_exit");
-    loop {
-    }
+    intr_context.eax = ret as usize;
 }

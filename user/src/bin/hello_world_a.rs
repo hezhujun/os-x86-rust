@@ -6,10 +6,8 @@ extern crate user_lib;
 
 #[no_mangle]
 fn main() -> isize {
-    loop {
-        for i in 0..2000 {
-            println!("hello world a {}", i);
-        }
+    for i in 0..20 {
+        println!("hello world a {}", i);
     }
     0
 }

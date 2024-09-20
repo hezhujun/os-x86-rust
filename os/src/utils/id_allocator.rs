@@ -3,6 +3,7 @@ use spin::Mutex;
 
 use super::Bitmap;
 
+#[derive(Clone, Copy, Debug)]
 pub struct IdAllocator<const N: usize> {
     bitmap: Bitmap<N>,
     base: usize,

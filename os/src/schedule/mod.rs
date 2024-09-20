@@ -3,15 +3,18 @@ use core::option::Option::Some;
 use core::option::Option::None;
 use core::mem::drop;
 use alloc::{sync::Arc, task, vec::Vec};
-use manager::{add_task, fetch_task};
-use processor::current_task;
+pub use manager::*;
+pub use processor::current_task;
 use processor::{schedule, take_current_task};
+use spin::Mutex;
 use switch::__switch;
 
 use crate::config::*;
 use crate::intr::*;
 use crate::mm::*;
+use crate::process::KERNEL_PROCESS;
 use crate::{config::MEMORY_PAGE_SIZE, intr::IntrContext, mm::{MapArea, MapPermission, MemorySet, PageTable, PhysAddr, VPNRange, VirtAddr}, process::{ProcessControlBlock, ProcessControlBlockInner, TaskContext, TaskControlBlock, TaskControlBlockInner, TaskStatus}};
+use crate::programs::PROGRAMS;
 
 mod switch;
 mod manager;
@@ -21,7 +24,7 @@ pub use processor::run_tasks;
 
 pub fn suspend_current_and_run_next() {
     if let Some(task) = take_current_task() {
-        let mut task_inner = task.task_inner.lock();
+        let mut task_inner = task.inner.lock();
         let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
         task_inner.status = TaskStatus::Ready;
         drop(task_inner);
@@ -30,46 +33,88 @@ pub fn suspend_current_and_run_next() {
     }
 }
 
+pub fn exit_current_and_run_next(exit_code: isize) -> ! {
+    let task = take_current_task().unwrap();
+    let mut task_inner = task.inner.lock();
+    let process = task.process.upgrade().unwrap();
+    let tid = task.tid;
+    task_inner.exit_code = exit_code;
+    // can deallocate user space resources earlier
+    drop(task_inner);
+    drop(task);
+    if tid == 0 {
+        let pid = process.get_pid();
+        remove_from_pid2process(pid);
+        let mut process_inner = process.inner.lock();
+        process_inner.exit_code = exit_code;
+        process_inner.is_zombie = true;
+    }
+    drop(process);
+    let mut _unused = TaskContext::empty();
+    schedule(&mut _unused as *mut _);
+    panic!("unreachable after sys_exit!");
+}
 
-fn page_fault_intr_handler(intr_context: IntrContext) {
+fn page_fault_intr_handler(intr_context: &mut IntrContext) {
     let intr = intr_context.intr;
     let error_code = intr_context.error_code;
     let eip = intr_context.eip;
     let cs = intr_context.cs;
-    if let Some(task) = current_task() {
-        if let Some(process) = task.process.upgrade() {
-            let pid = process.get_pid();
-            let mut is_repaired = false;
-            let mut process_inner = process.inner.lock();
-            let memory_set = &process_inner.memory_set;
-            let page_table = &memory_set.page_table;
-            let mut is_mapped = false;
-            if let Some(map_area) = memory_set.areas.first() {
-                let start_vpn = map_area.vpn_range.start;
-                is_mapped = page_table.is_vpn_present(start_vpn);
-                is_repaired = true;
-            }
-
-            if !is_mapped {
-                process_inner.map_all_areas_and_load_data();
-                is_repaired = true;
-            }
-
-            if !is_repaired {
-                // if no repair operation, something error, exit process
-                assert!(false);
-            }
-            return
-        }
+    let esp = intr_context.esp;
+    let ss = intr_context.ss;
+    let task = current_task().unwrap();
+    let process = task.process.upgrade().unwrap();
+    let pid = process.get_pid();
+    assert_ne!(eip, 0, "page_fault_intr_handler cs {:#x} eip {:#x} ss {:#x} esp {:#x} error code {} {} pid {}", cs, eip, ss, esp, error_code, IrqErrorCode(error_code), pid);
+    let mut process_inner = process.inner.lock();
+    let mut is_repaired = process_inner.repair_page_fault();
+    
+    let memory_set = &mut process_inner.memory_set;
+    let page_table = &mut memory_set.page_table;
+    let mut task_inner = task.inner.lock();
+    is_repaired |= task_inner.repair_page_fault(page_table);
+    if !is_repaired {
+        // if no repair operation, something error, exit process
+        assert!(false);
     }
-    panic!("no process");
+
+    assert_ne!(intr_context.eip, 0, "page_fault_intr_handler end with intr_context.eip=0");
 }
 
 pub fn init() {
+    {
+        // 初始化 KERNEL_PROCESS，不确定这段代码是否会被优化掉
+        // 构建 0 号进程
+        let kernel_process = &KERNEL_PROCESS;
+        assert_eq!(kernel_process.get_pid(), 0);
+    }
+    {
+        // 构建 1 号进程
+        let initproc = &INITPROC_PROCESS;
+        let task = {
+            let inner = initproc.inner.lock();
+            inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
+        };
+        add_task(task);
+        insert_into_pid2process(initproc.get_pid(), INITPROC_PROCESS.clone());
+    }
     INTR_HANDLER_TABLE.lock()[0xe] = page_fault_intr_handler;
 }
 
-static mut PROCESS_LIST: Option<[Arc<ProcessControlBlock>; 5]> = None;
+lazy_static! {
+    static ref INITPROC_PROCESS: Arc<ProcessControlBlock> = {
+        let programs = PROGRAMS.lock();
+        let elf: &'static [u8] = programs.get("initproc").unwrap();
+        let process = ProcessControlBlock::from_elf_file(elf);
+        let mut inner = process.inner.lock();
+        inner.elf_data = Some(elf);
+        assert_eq!(process.get_pid(), 1);
+        process.clone()
+    };
+
+
+    static ref PROCESS_LIST: Arc<Mutex<Vec<Arc<ProcessControlBlock>>>> = Arc::new(Mutex::new(Vec::new()));
+}
 
 pub fn thread_0() {
     debug!("thread_0");
@@ -89,25 +134,18 @@ pub fn thread_1() {
     }
 }
 
-pub fn test() {
-    extern "C" {
-        fn app_0_start();
-        fn app_0_end();
-        fn app_1_start();
-        fn app_1_end();
-        fn app_2_start();
-        fn app_2_end();
+pub fn do_nothing() {
+    debug!("do_nothing");
+    loop {
+        
     }
+}
 
-    let app_0_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_0_start as usize as *const u8, app_0_end as usize - app_0_start as usize)
-    };
-    let app_1_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_1_start as usize as *const u8, app_1_end as usize - app_1_start as usize)
-    };
-    let app_2_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_2_start as usize as *const u8, app_2_end as usize - app_2_start as usize)
-    };
+pub fn test() {
+    let programs = PROGRAMS.lock();
+    let app_0_data: &'static [u8] = programs.get("hello_world").unwrap();
+    let app_1_data: &'static [u8] = programs.get("hello_world_a").unwrap();
+    let app_2_data: &'static [u8] = programs.get("hello_world_b").unwrap();
 
     let process0 = ProcessControlBlock::from_elf_file(app_0_data);
     let task0 = {
@@ -140,16 +178,33 @@ pub fn test() {
         let inner = process4.inner.lock();
         inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
     };
+    info!("do_nothing address {:#x}", do_nothing as usize);
+    let process5 = ProcessControlBlock::new_kernel_process(do_nothing as usize);
+    let task5 = {
+        let inner = process5.inner.lock();
+        inner.tasks[0].as_ref().map(|task| task.clone()).unwrap()
+    };
 
-    add_task(task3);
-    add_task(task4);
     add_task(task0);
+    insert_into_pid2process(0, process0.clone());
     add_task(task1);
+    insert_into_pid2process(1, process1.clone());
     add_task(task2);
+    insert_into_pid2process(2, process2.clone());
+    add_task(task3);
+    insert_into_pid2process(3, process3.clone());
+    add_task(task4);
+    insert_into_pid2process(4, process4.clone());
+    add_task(task5);
+    insert_into_pid2process(5, process5.clone());
 
-    unsafe {
-        PROCESS_LIST = Some([process0, process1, process2, process3, process4]);
-    }
+    let mut process_list = PROCESS_LIST.lock();
+    process_list.push(process0);
+    process_list.push(process1);
+    process_list.push(process2);
+    process_list.push(process3);
+    process_list.push(process4);
+    process_list.push(process5);
 
     info!("test done");
 }

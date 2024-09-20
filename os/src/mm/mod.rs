@@ -119,16 +119,18 @@ pub fn init() {
     memory_info();
     init::init_kernel_page_table();
     heap_allocator::init();
-    let _ = KERNEL_MEMORY_SET.lock();
+    // let _ = KERNEL_MEMORY_SET.lock();
 
     // 设置用户态的全局描述符表表项
     let gdt = unsafe {
         core::slice::from_raw_parts_mut(0xc0090000usize as *mut SegmentDescriptor, GDT_SIZE)
     };
-    let code_segment = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X | DescriptorType::A, true, 0, true, false, false, true);
-    assert_eq!(gdt[1], code_segment);
-    let data_segment = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W | DescriptorType::A, true, 0, true, false, false, true);
-    assert_eq!(gdt[2], data_segment);
+    let code_segment = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X, true, 0, true, false, false, true);
+    let code_segment_accessed = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X | DescriptorType::A, true, 0, true, false, false, true);
+    assert!((gdt[1] == code_segment) || (gdt[1] == code_segment_accessed));
+    let data_segment = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W, true, 0, true, false, false, true);
+    let data_segment_accessed = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W | DescriptorType::A, true, 0, true, false, false, true);
+    assert!((gdt[2] == data_segment) || (gdt[2] == data_segment_accessed));
     gdt[3] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::X, true, 0b11, true, false, false, true);
     gdt[4] = SegmentDescriptor::new(0, u32::MAX, true, DescriptorType::R_W, true, 0b11, true, false, false, true);
     

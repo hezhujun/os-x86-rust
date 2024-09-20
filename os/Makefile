@@ -38,7 +38,7 @@ run: build
 	qemu-system-i386 $(QEMU_ARGS)
 
 run_with_graphic: build
-	qemu-system-i386 $(QEMU_ARGS)
+	qemu-system-i386 -monitor stdio $(QEMU_ARGS)
 
 debug: system_img
 	@tmux new-session -d \
@@ -47,10 +47,13 @@ debug: system_img
 		tmux -2 attach-session -d
 
 gdbserver: build
-	qemu-system-i386 $(QEMU_ARGS) -nographic -s -S
+	qemu-system-i386 $(QEMU_ARGS) -s -S
+
+lldbclient:
+	lldb --arch i386 -S lldb_debug.txt
 
 gdbclient:
-	lldb --arch i386 -S lldb_debug.txt
+	gdb -ex 'file $(SYSTEM_IMG)' -ex 'set arch i386:x86' -ex 'target remote localhost:1234'
 
 clean:
 	rm mbr.bin
@@ -65,6 +68,6 @@ bochs_disk_file:
 bochs_run: build
 	$(BOCHS_HOME)/bin/bochs -f $(BOCHS_CONFIG_FILE) -q
 
-disassemble:
+disassemble: build
 	rust-objdump --x86-asm-syntax=intel -d target/x86-unknown-bare-metal/debug/os > os.s
 	

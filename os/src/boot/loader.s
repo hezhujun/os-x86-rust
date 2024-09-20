@@ -57,6 +57,11 @@ read_memory_info:
   cmp ebx, 0
   jnz .read_memoy_info_loop
 
+  ; If interrupts are enabled, we should perpare the interrupt table 
+  ; before turning on protected mode, otherwise qemu/bochs using seabios 
+  ; will reboot after multiple interrupts are not handled
+  cli
+
   ; open A20
   in al, 0x92
   or al, 0000_0010B
@@ -83,23 +88,30 @@ p_mode_start:
   mov eax, 0x90000
   mov esp, eax
 
-  ; 0x40 * 0x100 * 512
-  ; 0x40 times
-  ; load 0x100 * 512 bytes
-  mov ecx, 0x40
+  ; $ecx times
+  ; load $eax sectors per time
+  ; load $eax * 512 bytes per time
+  ; 0x400 * 0x10 * 512
+  mov ecx, 0x4000
+  mov eax, 0x1
   mov ebx, 0x100000
   mov esi, 5
 load_kernel:
-  push ecx
-  push ebx
-  push dword 0x100  ; 0x100 sectors
-  push esi
+  push ecx  ; total times
+  push ebx  ; load dst address
+  push eax  ; the number of sectors to load per time
+  push esi  ; begin sector index
   call load_disk_32
-  add esp, 12
+  pop esi
+  pop eax
+  pop ebx
   pop ecx
-  
-  add ebx, 0x20000
-  add esi, 0x100
+
+  push eax
+  shl eax, 9  ; $eax = $eax * 512
+  add ebx, eax
+  pop eax
+  add esi, eax
   loop load_kernel
 
   ; setup memory page table
@@ -184,8 +196,9 @@ load_kernel:
   lgdt [gdt_ptr]
 
   ; clean #0 pde
-  mov ebx, 0xfffff000
-  mov dword [ebx], 0
+  ; qemu/bochs using seabios will reboot if current address are unmapped
+  ;mov ebx, 0xfffff000
+  ;mov dword [ebx], 0
 
   mov eax, 0xc0090000
   mov esp, eax

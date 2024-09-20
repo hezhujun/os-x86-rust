@@ -35,6 +35,7 @@ mod process;
 mod schedule;
 mod syscall;
 mod utils;
+mod programs;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -51,12 +52,13 @@ pub fn main() -> ! {
     let _ = logger::init();
     info!("Hello world!");
     mm::init();
+    drivers::init();
     intr::init();
     syscall::init();
     schedule::init();
     timer::init();
-    schedule::test();
-    // intr::begin_intr();
+    // schedule::test();
+    intr::begin_intr();
     schedule::run_tasks();
     loop {}
 }

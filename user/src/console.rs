@@ -1,7 +1,19 @@
 use core::fmt::{self, Write};
 use crate::write;
+use crate::read;
 
+const STDIN: usize = 0;
 const STDOUT: usize = 1;
+
+pub fn getchar() -> u8 {
+    let mut c = [0u8; 1];
+    loop {
+        let size = read(STDIN, &mut c);
+        if size == 1 {
+            return c[0]
+        }
+    }
+}
 
 struct Stdout;
 
