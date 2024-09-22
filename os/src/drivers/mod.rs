@@ -6,5 +6,6 @@ pub use chardev::UART;
 pub use screen::*;
 
 pub fn init() {
+    screen::init();
     keyboard::init();
 }

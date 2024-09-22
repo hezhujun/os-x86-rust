@@ -14,6 +14,12 @@ bitflags! {
     }
 }
 
+impl Default for ScreenCharAttr {
+    fn default() -> Self {
+        ScreenCharAttr::FOREGROUND_R | ScreenCharAttr::FOREGROUND_G | ScreenCharAttr::FOREGROUND_B
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ScreenAttrChar {
@@ -29,6 +35,6 @@ impl ScreenAttrChar {
 
 impl Default for ScreenAttrChar {
     fn default() -> Self {
-        Self { c: ' ' as u8, attr: ScreenCharAttr::empty() }
+        Self { c: ' ' as u8, attr: ScreenCharAttr::default() }
     }
 }

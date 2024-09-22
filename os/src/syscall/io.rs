@@ -1,4 +1,4 @@
-use crate::drivers::keyboard::get_char;
+use crate::{drivers::keyboard::get_char, screen_print};
 
 pub fn sys_read(fd: usize, buf: *mut u8, len: usize) -> isize {
     match fd {
@@ -33,7 +33,7 @@ pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
                 let v = core::slice::from_raw_parts(buf, len);
                 core::str::from_utf8_unchecked(v)
             };
-            crate::drivers::Screen.print(text);
+            screen_print!("{}", text);
             len as isize
         }
         _ => {
