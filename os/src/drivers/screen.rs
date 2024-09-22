@@ -14,7 +14,7 @@ const SCREEN_MAX_COL: usize = 80;
 const SCREEN_MAX_ROW: usize = 25;
 const SCREEN_BUFFER_LEN: usize = SCREEN_MAX_ROW * SCREEN_MAX_COL;
 
-static mut DEFAULT_SCREEN_DRIVER: DefaultScreenDriver = DefaultScreenDriver { cursor: 0 };
+static mut DEFAULT_SCREEN_DRIVER: Option<DefaultScreenDriver> = Some(DefaultScreenDriver { cursor: 0 });
 static mut USE_SCREEN_DRIVER: bool = false;
 
 pub fn init() {
@@ -36,13 +36,20 @@ fn screen_init() {
 lazy_static! {
     static ref SCREEN: Screen = {
         unsafe {
-            DEFAULT_SCREEN_DRIVER.init();
+            if let Some(screen) = DEFAULT_SCREEN_DRIVER.as_mut() {
+                screen.init();
+            }
         }
         Screen
     };
 
     static ref SCREEN_DRIVER: Arc<Mutex<dyn ScreenDriver>> = unsafe {
-        Arc::new(Mutex::new(DefaultScreenDriver::from(&DEFAULT_SCREEN_DRIVER)))
+        let screen = if let Some(screen) = DEFAULT_SCREEN_DRIVER.take() {
+            screen
+        } else {
+            DefaultScreenDriver::new()
+        };
+        Arc::new(Mutex::new(screen))
     };
 }
 pub struct Screen;
@@ -50,31 +57,45 @@ pub struct Screen;
 impl Screen {
     pub fn get_cursor(&self) -> usize {
         unsafe {
-            DEFAULT_SCREEN_DRIVER.get_cursor()
+            if let Some(screen) = DEFAULT_SCREEN_DRIVER.as_ref() {
+                screen.get_cursor()
+            } else {
+                0
+            }
         }
     }
 
     pub fn set_cursor(&self, index: usize) {
         unsafe {
-            DEFAULT_SCREEN_DRIVER.set_cursor(index);
+            if let Some(screen) = DEFAULT_SCREEN_DRIVER.as_mut() {
+                screen.set_cursor(index);
+            }
         }
     }
 
     pub fn print_char(&self, ch: char, attr: ScreenCharAttr) {
         unsafe {
-            DEFAULT_SCREEN_DRIVER.print_char(ch, attr);
+            if let Some(screen) = DEFAULT_SCREEN_DRIVER.as_mut() {
+                screen.print_char(ch, attr);
+            }
         }
     }
 
     pub fn print_str(&self, text: &str, attr: ScreenCharAttr) {
         unsafe {
-            DEFAULT_SCREEN_DRIVER.print_str(text, attr);
+            if let Some(screen) = DEFAULT_SCREEN_DRIVER.as_mut() {
+                screen.print_str(text, attr);
+            }
         }
     }
 
     pub fn get_char(&self, index: usize) -> Option<ScreenAttrChar> {
         unsafe {
-            DEFAULT_SCREEN_DRIVER.get_char(index)
+            if let Some(screen) = DEFAULT_SCREEN_DRIVER.as_mut() {
+                screen.get_char(index)
+            } else {
+                None
+            }
         }
     }
 }
