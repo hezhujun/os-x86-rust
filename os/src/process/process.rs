@@ -4,6 +4,7 @@ use alloc::task;
 use alloc::vec::Vec;
 use alloc::sync::Weak;
 use spin::Mutex;
+use alloc::vec;
 
 use crate::arch::x86::PteFlags;
 use crate::config::*;
@@ -11,6 +12,8 @@ use crate::mm::*;
 use crate::utils::*;
 use super::task::*;
 use super::task::create_thread_id_allocator;
+use crate::fs::*;
+use crate::fs::stdio::*;
 
 pub struct ProcessControlBlockInner {
     pub parent: Option<Weak<ProcessControlBlock>>,
@@ -20,12 +23,30 @@ pub struct ProcessControlBlockInner {
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
     pub exit_code: isize,
     pub is_zombie: bool,
+    pub fd_table: Vec<Option<Arc<dyn File>>>,
     pub elf_data: Option<&'static [u8]>,
 }
 
 impl ProcessControlBlockInner {
     pub fn new(memory_set: MemorySet) -> Self {
-        Self { parent: None, children: Vec::new(), memory_set: memory_set, tid_allocator: create_thread_id_allocator(), tasks: Vec::new(), exit_code: 0, is_zombie: false, elf_data: None }
+        Self { 
+            parent: None, 
+            children: Vec::new(), 
+            memory_set: memory_set, 
+            tid_allocator: create_thread_id_allocator(), 
+            tasks: Vec::new(), 
+            exit_code: 0, 
+            is_zombie: false, 
+            fd_table: vec![
+                // 0 -> stdin
+                Some(Arc::new(Stdin)),
+                // 1 -> stdout
+                Some(Arc::new(Stdout)),
+                // 2 -> stderr
+                Some(Arc::new(Stdout)),
+            ],
+            elf_data: None,
+        }
     }
 
     /// 修复缺页错误
@@ -151,6 +172,15 @@ impl ProcessControlBlock {
         let memory_set = process_inner.memory_set.copy();
         let tid_allocator = process_inner.tid_allocator;
         let tasks: Vec<Option<Arc<TaskControlBlock>>> = Vec::new();
+        // copy fd table
+        let mut new_fd_table: Vec<Option<Arc<dyn File>>> = Vec::new();
+        for fd in process_inner.fd_table.iter() {
+            if let Some(file) = fd {
+                new_fd_table.push(Some(file.clone()));
+            } else {
+                new_fd_table.push(None);
+            }
+        }
         let inner = ProcessControlBlockInner {
             parent: None,
             children: Vec::new(),
@@ -159,6 +189,7 @@ impl ProcessControlBlock {
             tasks,
             exit_code: process_inner.exit_code,
             is_zombie: process_inner.is_zombie,
+            fd_table: new_fd_table,
             elf_data: process_inner.elf_data,
         };
         let new_process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
@@ -235,6 +266,7 @@ lazy_static! {
             tasks: Vec::new(),
             exit_code: 0,
             is_zombie: false,
+            fd_table: vec![],
             elf_data: None,
         };
 

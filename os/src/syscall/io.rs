@@ -1,43 +1,64 @@
-use crate::{drivers::keyboard::get_char, screen_print};
+use crate::{drivers::keyboard::get_char, schedule::current_task, screen_print};
 
 pub fn sys_read(fd: usize, buf: *mut u8, len: usize) -> isize {
-    match fd {
-        0 => {
-            if buf.is_null() {
-                return -1;
-            }
+    if buf.is_null() {
+        return -1;
+    }
+
+    if len == 0 {
+        return 0;
+    }
+
+    let task = current_task().unwrap();
+    let process = task.process.upgrade().unwrap();
+    let process_inner = process.inner.lock();
+    if fd >= process_inner.fd_table.len() {
+        return -1;
+    }
+    if let Some(file) = process_inner.fd_table[fd].as_ref() {
+        let file = file.clone();
+        // file.read 可能会阻塞并切换进程，提前释放 process_inner，避免卡死
+        drop(process_inner);
+        if file.readable() {
             let buf = unsafe {
                 core::slice::from_raw_parts_mut(buf, len)
             };
-            let mut index = 0;
-            while index < len {
-                if let Some(ch) = get_char() {
-                    buf[index] = ch;
-                } else {
-                    break;
-                }
-                index += 1;
-            }
-            index as isize
+            file.read(buf) as isize
+        } else {
+            -2
         }
-        _ => {
-            panic!("Unsupported fd {} in sys_write!", fd);
-        }
+    } else {
+        -1
     }
 }
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
-    match fd {
-        1 => {
-            let text = unsafe { 
-                let v = core::slice::from_raw_parts(buf, len);
-                core::str::from_utf8_unchecked(v)
+    if buf.is_null() {
+        return 0;
+    }
+
+    if len == 0 {
+        return 0;
+    }
+
+    let task = current_task().unwrap();
+    let process = task.process.upgrade().unwrap();
+    let process_inner = process.inner.lock();
+    if fd >= process_inner.fd_table.len() {
+        return -1;
+    }
+    if let Some(file) = process_inner.fd_table[fd].as_ref() {
+        let file = file.clone();
+        drop(process_inner);
+        if file.writable() {
+            let buf = unsafe {
+                core::slice::from_raw_parts(buf, len)
             };
-            screen_print!("{}", text);
-            len as isize
+            file.write(buf) as isize
+        } else {
+            -2
         }
-        _ => {
-            panic!("Unsupported fd {} in sys_write!", fd);
-        }
+    } else {
+        -1
     }
 }

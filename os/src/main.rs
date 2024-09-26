@@ -36,6 +36,7 @@ mod schedule;
 mod syscall;
 mod utils;
 mod programs;
+mod fs;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
