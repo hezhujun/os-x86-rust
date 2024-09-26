@@ -220,7 +220,7 @@ impl DefaultScreenDriver {
         for idx in 0..SCREEN_MAX_COL {
             get_screen_buffer()[len + idx] = ScreenAttrChar::default();
         }
-        if self.cursor > SCREEN_MAX_COL {
+        if self.cursor < SCREEN_MAX_COL {
             self.cursor = 0;
         } else {
             self.cursor = self.cursor - SCREEN_MAX_COL;
