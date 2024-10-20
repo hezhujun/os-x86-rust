@@ -10,7 +10,7 @@ use crate::utils::*;
 use super::ProcessControlBlockInner;
 use super::{context::TaskContext, process::ProcessControlBlock};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TaskStatus {
     Ready, Running, Block
 }
@@ -24,7 +24,7 @@ pub struct TaskControlBlockInner {
     pub user_stack_top_address: Option<VirtAddr>,
     pub kernel_stack_map_area: MapArea,
     pub user_stack_map_area: Option<MapArea>,
-    pub exit_code: isize,
+    pub exit_code: Option<isize>,
 }
 
 impl TaskControlBlockInner {
@@ -52,7 +52,7 @@ pub struct TaskControlBlock {
 }
 
 impl TaskControlBlock {
-    pub fn new(process: Arc<ProcessControlBlock>, entry_point: usize, is_kernel_task: bool) -> Self {
+    pub fn new<T>(process: Arc<ProcessControlBlock>, entry_point: usize, is_kernel_task: bool, user_data: Option<T>) -> Self {
         let mut process_inner = process.inner.lock();
         let tid = process_inner.tid_allocator.alloc().unwrap();
         // user stack
@@ -61,12 +61,17 @@ impl TaskControlBlock {
             let user_stack_bottom_address = user_stack_top_address - USER_STACK_SIZE;
             let user_stack_top_va = VirtAddr(user_stack_top_address);
             let user_stack_bottom_va = VirtAddr(user_stack_bottom_address);
-            let user_stack_area = MapArea::new(
+            let mut user_stack_area = MapArea::new(
                 VirtPageNum::from(user_stack_bottom_va)..VirtPageNum::from(user_stack_top_va),
                 MapPermission::R | MapPermission::W | MapPermission::U
             );
+            let mut intr_cx = IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address));
+            if let Some(use_data) = user_data {
+                user_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
+                Self::push_data_to_user_stack(&mut intr_cx, use_data);
+            }
             // user_stack_area.map_if_need(&mut process_inner.memory_set.page_table);
-            (Some(user_stack_top_va), Some(user_stack_area), IntrContext::user_intr_context(VirtAddr(entry_point), VirtAddr(user_stack_top_address)))
+            (Some(user_stack_top_va), Some(user_stack_area), intr_cx)
         } else {
             (None, None, IntrContext::kernel_intr_context(VirtAddr(entry_point)))
         };
@@ -89,7 +94,7 @@ impl TaskControlBlock {
             user_stack_top_address: user_stack_top_va,
             kernel_stack_map_area: kernel_stack_area,
             user_stack_map_area: user_stack_area,
-            exit_code: 0,
+            exit_code: None,
         };
 
         Self { tid: tid, process: Arc::downgrade(&process), inner: Arc::new(Mutex::new(task_inner)) }
@@ -135,7 +140,7 @@ impl TaskControlBlock {
             user_stack_top_address: task_inner.user_stack_top_address,
             kernel_stack_map_area: kernel_stack_area,
             user_stack_map_area: new_user_stack_area,
-            exit_code: task_inner.exit_code,
+            exit_code: task_inner.exit_code.clone(),
         };
 
         Self { 
@@ -168,6 +173,24 @@ impl TaskControlBlock {
         task_inner.intr_cx = intr_context;
         task_inner.user_stack_top_address = Some(user_stack_top_va);
         task_inner.user_stack_map_area = Some(user_stack_area);
+    }
+
+    fn push_data_to_user_stack<T>(intr_cx: &mut IntrContext, data: T) {
+        assert!(core::mem::size_of::<T>() < MEMORY_PAGE_SIZE);
+        let mut user_stack_top = intr_cx.esp;
+        // 参数
+        user_stack_top = user_stack_top - core::mem::size_of::<T>();
+        unsafe {
+            let data_ptr = user_stack_top as *mut T;
+            *data_ptr = data;
+        }
+        // "函数返回地址"，假装是其他函数调用
+        user_stack_top = user_stack_top - core::mem::size_of::<usize>();
+        unsafe {
+            let data_ptr = user_stack_top as *mut usize;
+            *data_ptr = 0;
+        }
+        intr_cx.esp = user_stack_top;
     }
 
     pub fn destroy(&self, process_inner: &mut ProcessControlBlockInner) {

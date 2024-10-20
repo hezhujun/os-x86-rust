@@ -67,3 +67,24 @@ pub fn sys_exec(path: &str, args: &[*const u8]) -> isize {
 pub fn sys_waitpid(pid: isize, exit_code: *mut isize) -> isize {
     syscall(SYSCALL_WAITPID, [pid as usize, exit_code as usize, 0])
 }
+
+
+/// 功能：当前进程创建一个新的线程
+/// 参数：entry 表示线程的入口函数地址，arg 表示传给线程入口函数参数
+/// 返回值：创建的线程的 TID
+/// syscall ID: 1000
+pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
+    syscall(SYSCALL_THREAD_CREATE, [entry, arg, 0])
+}
+
+pub fn sys_gettid() -> isize {
+    syscall(SYSCALL_GETTID, [0, 0, 0])
+}
+
+/// 功能：等待当前进程内的一个指定线程退出
+/// 参数：tid 表示指定线程的 TID
+/// 返回值：如果线程不存在，返回-1；如果线程还没退出，返回-2；其他情况下，返回结束线程的退出码
+/// syscall ID: 1002
+pub fn sys_waittid(tid: usize) -> isize {
+    syscall(SYSCALL_WAITTID, [tid, 0, 0])
+}

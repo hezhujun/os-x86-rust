@@ -21,7 +21,7 @@ pub struct ProcessControlBlockInner {
     pub memory_set: MemorySet,
     pub tid_allocator: ThreadIdAllocator,
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
-    pub exit_code: isize,
+    pub exit_code: Option<isize>,
     pub is_zombie: bool,
     pub fd_table: Vec<Option<Arc<dyn File>>>,
     pub elf_data: Option<&'static [u8]>,
@@ -35,7 +35,7 @@ impl ProcessControlBlockInner {
             memory_set: memory_set, 
             tid_allocator: create_thread_id_allocator(), 
             tasks: Vec::new(), 
-            exit_code: 0, 
+            exit_code: None, 
             is_zombie: false, 
             fd_table: vec![
                 // 0 -> stdin
@@ -133,7 +133,7 @@ impl ProcessControlBlock {
         let process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
         let process = Arc::new(process);
         // 3. alloc task resource
-        let task = TaskControlBlock::new(process.clone(), entry_point, false);
+        let task = TaskControlBlock::new::<()>(process.clone(), entry_point, false, None);
         process.add_task(Arc::new(task));
         process
     }
@@ -144,7 +144,7 @@ impl ProcessControlBlock {
         let inner = ProcessControlBlockInner::new(memory_set);
         let process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
         let process = Arc::new(process);
-        let task = TaskControlBlock::new(process.clone(), entry_point, true);
+        let task = TaskControlBlock::new::<()>(process.clone(), entry_point, true, None);
         process.add_task(Arc::new(task));
         process
     }
@@ -187,7 +187,7 @@ impl ProcessControlBlock {
             memory_set,
             tid_allocator,
             tasks,
-            exit_code: process_inner.exit_code,
+            exit_code: process_inner.exit_code.clone(),
             is_zombie: process_inner.is_zombie,
             fd_table: new_fd_table,
             elf_data: process_inner.elf_data,
@@ -264,7 +264,7 @@ lazy_static! {
             memory_set,
             tid_allocator: create_thread_id_allocator(),
             tasks: Vec::new(),
-            exit_code: 0,
+            exit_code: None,
             is_zombie: false,
             fd_table: vec![],
             elf_data: None,

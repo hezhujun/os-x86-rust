@@ -89,6 +89,10 @@ pub fn sys_waitpid(pid: isize, exit_code: *mut isize) -> isize {
     let task = current_task().unwrap();
     let process = task.process.upgrade().unwrap();
     let mut process_inner = process.inner.lock();
+    if process_inner.children.len() == 0 {
+        return -1;
+    }
+
     let info = process_inner.children.iter().enumerate().map(|(index, child)| {
         let child_inner = child.inner.lock();
         (index, child.get_pid(), child_inner.is_zombie)
@@ -109,12 +113,8 @@ pub fn sys_waitpid(pid: isize, exit_code: *mut isize) -> isize {
         let child_inner = child.inner.lock();
         assert!(child_inner.is_zombie);
         unsafe {
-            exit_code.as_mut().map(| exit_code| *exit_code = child_inner.exit_code);
-        }
-        for child_of_child in child_inner.children.iter() {
-            let mut child_of_child_inner = child_of_child.inner.lock();
-            child_of_child_inner.parent = Some(Arc::downgrade(&process));
-            process_inner.children.push(child_of_child.clone());
+            let child_exit_code = child_inner.exit_code.as_ref().map_or(0, |code| *code);
+            exit_code.as_mut().map(| exit_code| *exit_code = child_exit_code);
         }
         child_pid.try_into().unwrap()
     } else {

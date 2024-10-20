@@ -1,12 +1,15 @@
 mod define;
 mod process;
+mod thread;
 mod io;
 
 use define::*;
 use process::*;
+use thread::*;
 use io::*;
 
 use crate::{intr::{set_ldt_entry, IntrContext, INTR_HANDLER_TABLE}, schedule::current_task};
+use crate::schedule::check_current_process_status;
 
 
 pub fn init() {
@@ -15,6 +18,8 @@ pub fn init() {
 }
 
 fn syscall_intr_handler(intr_context: &mut IntrContext) {
+    check_current_process_status();
+
     let syscall_id = intr_context.eax;
     let param1 = intr_context.ebx;
     let param2 = intr_context.ecx;
@@ -37,6 +42,9 @@ fn syscall_intr_handler(intr_context: &mut IntrContext) {
         SYSCALL_FORK => sys_fork(),
         SYSCALL_EXEC => sys_exec(param1 as *const u8, param2 as *const usize, intr_context),
         SYSCALL_WAITPID => sys_waitpid(param1 as isize, param2 as *mut isize),
+        SYSCALL_THREAD_CREATE => sys_thread_create(param1, param2),
+        SYSCALL_GETTID => sys_gettid(),
+        SYSCALL_WAITTID => sys_waittid(param1) as isize,
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     };
 

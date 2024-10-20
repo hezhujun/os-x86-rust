@@ -7,7 +7,11 @@ extern crate user_lib;
 static APPS: &[&str] = &[
     "hello_world",
     "hello_world_a",
-    "hello_world_b",
+    "forktest_simple",
+    "forktest",
+    "forktest2",
+    "threads",
+    "threads_arg"
 ];
 
 #[no_mangle]

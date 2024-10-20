@@ -23,6 +23,7 @@ mod processor;
 pub use processor::run_tasks;
 
 pub fn suspend_current_and_run_next() {
+    check_current_process_status();
     if let Some(task) = take_current_task() {
         let mut task_inner = task.inner.lock();
         let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
@@ -38,21 +39,70 @@ pub fn exit_current_and_run_next(exit_code: isize) -> ! {
     let mut task_inner = task.inner.lock();
     let process = task.process.upgrade().unwrap();
     let tid = task.tid;
-    task_inner.exit_code = exit_code;
+    task_inner.exit_code = Some(exit_code);
     // can deallocate user space resources earlier
     drop(task_inner);
     drop(task);
+
+    let mut process_inner = process.inner.lock();
+
     if tid == 0 {
         let pid = process.get_pid();
         remove_from_pid2process(pid);
-        let mut process_inner = process.inner.lock();
-        process_inner.exit_code = exit_code;
+        process_inner.exit_code = Some(exit_code);
+
+        {
+            let mut initproc_inner = INITPROC_PROCESS.inner.lock();
+            for child in process_inner.children.iter_mut() {
+                let mut child_inner = child.inner.lock();
+                child_inner.parent = Some(Arc::downgrade(&INITPROC_PROCESS.clone()));
+                initproc_inner.children.push(child.clone());
+            }
+            process_inner.children.clear();
+        }
+
+        process_inner
+            .tasks
+            .iter()
+            .for_each(|task_option| {
+                let task_option = task_option.as_ref();
+                if let Some(task) = task_option {
+                    let task_inner = task.inner.lock();
+                    if task_inner.status == TaskStatus::Ready {
+                        remove_task(task.clone());
+                    }
+                }
+            })
+    }
+
+    if process_inner.tasks.iter()
+        .all(|task_option| { 
+            task_option.as_ref().map_or(true, |task| {
+                let task_inner = task.inner.lock();
+                task_inner.exit_code.is_some()
+            }) 
+        }) {
         process_inner.is_zombie = true;
     }
+    
+    drop(process_inner);
     drop(process);
     let mut _unused = TaskContext::empty();
     schedule(&mut _unused as *mut _);
     panic!("unreachable after sys_exit!");
+}
+
+pub fn check_current_process_status() {
+    let task = current_task().unwrap();
+    let process = task.process.upgrade().unwrap();
+    let process_inner = process.inner.lock();
+
+    if process_inner.exit_code.is_some() {
+        drop(process_inner);
+        drop(process);
+        drop(task);
+        exit_current_and_run_next(0);
+    }
 }
 
 fn page_fault_intr_handler(intr_context: &mut IntrContext) {
@@ -66,6 +116,7 @@ fn page_fault_intr_handler(intr_context: &mut IntrContext) {
     let process = task.process.upgrade().unwrap();
     let pid = process.get_pid();
     assert_ne!(eip, 0, "page_fault_intr_handler cs {:#x} eip {:#x} ss {:#x} esp {:#x} error code {} {} pid {}", cs, eip, ss, esp, error_code, IrqErrorCode(error_code), pid);
+    // debug!("intr #{}({:#x}) error code {} {} eip {:#x} cs {:#x} esp {:#x} ss {:#x} ebp {:#x}", intr, intr, error_code, IrqErrorCode(error_code), eip, cs, esp, ss, intr_context.ebp);
     let mut process_inner = process.inner.lock();
     let mut is_repaired = process_inner.repair_page_fault();
     

@@ -15,8 +15,16 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
         fn app_hello_world_end();
         fn app_hello_world_a_start();
         fn app_hello_world_a_end();
-        fn app_hello_world_b_start();
-        fn app_hello_world_b_end();
+        fn app_forktest_simple_start();
+        fn app_forktest_simple_end();
+        fn app_forktest_start();
+        fn app_forktest_end();
+        fn app_forktest2_start();
+        fn app_forktest2_end();
+        fn app_threads_start();
+        fn app_threads_end();
+        fn app_threads_arg_start();
+        fn app_threads_arg_end();
     }
 
     let intiproc_data: &'static [u8] = unsafe {
@@ -34,8 +42,20 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
     let hello_world_a_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_hello_world_a_start as usize as *const u8, app_hello_world_a_end as usize - app_hello_world_a_start as usize)
     };
-    let hello_world_b_data: &'static [u8] = unsafe {
-        core::slice::from_raw_parts(app_hello_world_b_start as usize as *const u8, app_hello_world_b_end as usize - app_hello_world_b_start as usize)
+    let forktest_simple_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_forktest_simple_start as usize as *const u8, app_forktest_simple_end as usize - app_forktest_simple_start as usize)
+    };
+    let forktest_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_forktest_start as usize as *const u8, app_forktest_end as usize - app_forktest_start as usize)
+    };
+    let forktest2_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_forktest2_start as usize as *const u8, app_forktest2_end as usize - app_forktest2_start as usize)
+    };
+    let threads_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_threads_start as usize as *const u8, app_threads_end as usize - app_threads_start as usize)
+    };
+    let threads_arg_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_threads_arg_start as usize as *const u8, app_threads_arg_end as usize - app_threads_arg_start as usize)
     };
 
     let mut programs = BTreeMap::new();
@@ -44,7 +64,11 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
     programs.insert("help", help_data);
     programs.insert("hello_world", hello_world_data);
     programs.insert("hello_world_a", hello_world_a_data);
-    programs.insert("hello_world_b", hello_world_b_data);
+    programs.insert("forktest_simple", forktest_simple_data);
+    programs.insert("forktest", forktest_data);
+    programs.insert("forktest2", forktest2_data);
+    programs.insert("threads", threads_data);
+    programs.insert("threads_arg", threads_arg_data);
     programs
 }
 
