@@ -52,6 +52,7 @@ pub fn main() -> ! {
     clear_bss();
     let _ = logger::init();
     info!("Hello world!");
+    print_time();
     mm::init();
     drivers::init();
     intr::init();
@@ -72,4 +73,16 @@ fn clear_bss() {
     (sbss as usize..ebss as usize).for_each(|a| {
         unsafe { (a as *mut u8).write_volatile(0) }
     });
+}
+
+fn print_time() {
+    use drivers::rtc::*;
+    let seconds = read_second();
+    let minutes = read_minute();
+    let hours = read_hour();
+    let weeks = read_week();
+    let days = read_day();
+    let mouths = read_mouth();
+    let years = read_year();
+    info!("{}-{}-{} {} {}:{}:{}", years, mouths, days, weeks, hours, minutes, seconds);
 }
