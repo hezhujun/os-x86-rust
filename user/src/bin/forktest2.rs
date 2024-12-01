@@ -4,24 +4,31 @@
 #[macro_use]
 extern crate user_lib;
 
-use user_lib::{fork, getpid};
+use user_lib::*;
+
+static NUM: usize = 30;
 
 #[no_mangle]
 pub fn main() -> isize {
-    println!("parent start, pid = {}!", getpid());
-    let pid = fork();
-    if pid == 0 {
-        // child process
-        println!("hello child process!");
-        for i in 0..=10000 {
-            if i % 1000 == 0 {
-                println!("child process iter {}", i);
-            }
+    for _ in 0..NUM {
+        let pid = fork();
+        if pid == 0 {
+            let current_time = get_time();
+            let sleep_length =
+                (current_time as isize) * (current_time as isize) % 1000 + 1000;
+            println!("pid {} sleep for {} ms", getpid(), sleep_length);
+            sleep(sleep_length as usize);
+            println!("pid {} OK!", getpid());
+            exit(0);
         }
-        println!("child process exit!");
-        0
-    } else {
-        // parent process
-        0
     }
+
+    let mut exit_code: isize = 0;
+    for _ in 0..NUM {
+        assert!(wait(&mut exit_code) > 0);
+        assert_eq!(exit_code, 0);
+    }
+    assert!(wait(&mut exit_code) < 0);
+    println!("forktest2 test passed!");
+    0
 }

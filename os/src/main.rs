@@ -37,6 +37,7 @@ mod syscall;
 mod utils;
 mod programs;
 mod fs;
+mod sync;
 
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
@@ -56,11 +57,11 @@ pub fn main() -> ! {
     mm::init();
     drivers::init();
     intr::init();
+    timer::init();
     syscall::init();
     schedule::init();
-    timer::init();
     // schedule::test();
-    intr::begin_intr();
+    // intr::begin_intr();
     schedule::run_tasks();
     loop {}
 }
@@ -80,9 +81,8 @@ fn print_time() {
     let seconds = read_second();
     let minutes = read_minute();
     let hours = read_hour();
-    let weeks = read_week();
     let days = read_day();
     let mouths = read_mouth();
     let years = read_year();
-    info!("{}-{}-{} {} {}:{}:{}", years, mouths, days, weeks, hours, minutes, seconds);
+    info!("{}-{}-{} {}:{}:{}", years, mouths, days, hours, minutes, seconds);
 }

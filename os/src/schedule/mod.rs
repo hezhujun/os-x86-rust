@@ -5,6 +5,7 @@ use core::mem::drop;
 use alloc::{sync::Arc, task, vec::Vec};
 pub use manager::*;
 pub use processor::current_task;
+pub use processor::current_process;
 use processor::{schedule, take_current_task};
 use spin::Mutex;
 use switch::__switch;
@@ -31,7 +32,28 @@ pub fn suspend_current_and_run_next() {
         drop(task_inner);
         add_task(task);
         schedule(task_cx_ptr);
+    } else {
+        assert!(false);
     }
+}
+
+pub fn block_current_and_run_next() {
+    if let Some(task) = take_current_task() {
+        let mut task_inner = task.inner.lock();
+        let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
+        task_inner.status = TaskStatus::Block;
+        drop(task_inner);
+        schedule(task_cx_ptr);
+    } else {
+        assert!(false)
+    }
+}
+
+pub fn wakeup_task(task: Arc<TaskControlBlock>) {
+    let mut task_inner = task.inner.lock();
+    task_inner.status = TaskStatus::Ready;
+    drop(task_inner);
+    add_task(task);
 }
 
 pub fn exit_current_and_run_next(exit_code: isize) -> ! {

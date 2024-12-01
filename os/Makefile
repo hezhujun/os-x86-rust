@@ -7,6 +7,7 @@ SRC_PATH := src
 
 QEMU_ARGS := -machine pc \
 			 -smp 1 \
+			 -rtc base=localtime \
 			 -m $(MEMORY_SIZE) \
 			 -drive format=raw,file=$(SYSTEM_IMG)
 

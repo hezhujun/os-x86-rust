@@ -21,10 +21,24 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
         fn app_forktest_end();
         fn app_forktest2_start();
         fn app_forktest2_end();
+        fn app_forktree_start();
+        fn app_forktree_end();
         fn app_threads_start();
         fn app_threads_end();
         fn app_threads_arg_start();
         fn app_threads_arg_end();
+        fn app_adder_mutex_spin_start();
+        fn app_adder_mutex_spin_end();
+        fn app_adder_mutex_blocking_start();
+        fn app_adder_mutex_blocking_end();
+        fn app_mpsc_sem_start();
+        fn app_mpsc_sem_end();
+        fn app_condsync_sem_start();
+        fn app_condsync_sem_end();
+        fn app_condsync_condvar_start();
+        fn app_condsync_condvar_end();
+        fn app_barrier_condvar_start();
+        fn app_barrier_condvar_end();
     }
 
     let intiproc_data: &'static [u8] = unsafe {
@@ -51,11 +65,32 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
     let forktest2_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_forktest2_start as usize as *const u8, app_forktest2_end as usize - app_forktest2_start as usize)
     };
+    let forktree_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_forktree_start as usize as *const u8, app_forktree_end as usize - app_forktree_start as usize)
+    };
     let threads_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_threads_start as usize as *const u8, app_threads_end as usize - app_threads_start as usize)
     };
     let threads_arg_data: &'static [u8] = unsafe {
         core::slice::from_raw_parts(app_threads_arg_start as usize as *const u8, app_threads_arg_end as usize - app_threads_arg_start as usize)
+    };
+    let adder_mutex_spin_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_adder_mutex_spin_start as usize as *const u8, app_adder_mutex_spin_end as usize - app_adder_mutex_spin_start as usize)
+    };
+    let adder_mutex_blocking_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_adder_mutex_blocking_start as usize as *const u8, app_adder_mutex_blocking_end as usize - app_adder_mutex_blocking_start as usize)
+    };
+    let mpsc_sem_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_mpsc_sem_start as usize as *const u8, app_mpsc_sem_end as usize - app_mpsc_sem_start as usize)
+    };
+    let condsync_sem_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_condsync_sem_start as usize as *const u8, app_condsync_sem_end as usize - app_condsync_sem_start as usize)
+    };
+    let condsync_condvar_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_condsync_condvar_start as usize as *const u8, app_condsync_condvar_end as usize - app_condsync_condvar_start as usize)
+    };
+    let barrier_condvar_data: &'static [u8] = unsafe {
+        core::slice::from_raw_parts(app_barrier_condvar_start as usize as *const u8, app_barrier_condvar_end as usize - app_barrier_condvar_start as usize)
     };
 
     let mut programs = BTreeMap::new();
@@ -67,8 +102,15 @@ fn init_prgrams() -> BTreeMap<&'static str, &'static [u8]> {
     programs.insert("forktest_simple", forktest_simple_data);
     programs.insert("forktest", forktest_data);
     programs.insert("forktest2", forktest2_data);
+    programs.insert("forktree", forktree_data);
     programs.insert("threads", threads_data);
     programs.insert("threads_arg", threads_arg_data);
+    programs.insert("adder_mutex_spin", adder_mutex_spin_data);
+    programs.insert("adder_mutex_blocking", adder_mutex_blocking_data);
+    programs.insert("mpsc_sem", mpsc_sem_data);
+    programs.insert("condsync_sem", condsync_sem_data);
+    programs.insert("condsync_condvar", condsync_condvar_data);
+    programs.insert("barrier_condvar", barrier_condvar_data);
     programs
 }
 

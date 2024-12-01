@@ -6,6 +6,7 @@ use spin::Mutex;
 use crate::config::*;
 use crate::intr;
 use crate::mm::PageTable;
+use crate::process::ProcessControlBlock;
 use crate::process::{TaskContext, TaskControlBlock, TaskStatus};
 use crate::mm::update_tss;
 use super::DATA_SELECTOR;
@@ -82,6 +83,12 @@ pub fn take_current_task() -> Option<Arc<TaskControlBlock>> {
 
 pub fn current_task() -> Option<Arc<TaskControlBlock>> {
     PROCESSOR.lock().current()
+}
+
+pub fn current_process() -> Option<Arc<ProcessControlBlock>> {
+    PROCESSOR.lock().current().map(|task| {
+        task.process.upgrade().unwrap()
+    })
 }
 
 pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {

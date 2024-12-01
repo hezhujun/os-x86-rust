@@ -9,11 +9,13 @@ use alloc::vec;
 use crate::arch::x86::PteFlags;
 use crate::config::*;
 use crate::mm::*;
+use crate::sync::*;
 use crate::utils::*;
 use super::task::*;
 use super::task::create_thread_id_allocator;
 use crate::fs::*;
 use crate::fs::stdio::*;
+use crate::sync;
 
 pub struct ProcessControlBlockInner {
     pub parent: Option<Weak<ProcessControlBlock>>,
@@ -24,6 +26,9 @@ pub struct ProcessControlBlockInner {
     pub exit_code: Option<isize>,
     pub is_zombie: bool,
     pub fd_table: Vec<Option<Arc<dyn File>>>,
+    pub mutex_list: Vec<Option<Arc<dyn sync::Mutex>>>,
+    pub semaphore_list: Vec<Option<Arc<sync::Semaphore>>>,
+    pub condvar_list: Vec<Option<Arc<sync::Condvar>>>,
     pub elf_data: Option<&'static [u8]>,
 }
 
@@ -45,6 +50,9 @@ impl ProcessControlBlockInner {
                 // 2 -> stderr
                 Some(Arc::new(Stdout)),
             ],
+            mutex_list: Vec::new(),
+            semaphore_list: Vec::new(),
+            condvar_list: Vec::new(),
             elf_data: None,
         }
     }
@@ -181,6 +189,30 @@ impl ProcessControlBlock {
                 new_fd_table.push(None);
             }
         }
+        let mut mutex_list: Vec<Option<Arc<dyn sync::Mutex>>> = Vec::new();
+        for mutex_option in process_inner.mutex_list.iter() {
+            if let Some(mutex) = mutex_option {
+                mutex_list.push(Some(mutex.clone()));
+            } else {
+                mutex_list.push(None);
+            }
+        }
+        let mut semaphore_list: Vec<Option<Arc<Semaphore>>> = Vec::new();
+        for semaphore_option in process_inner.semaphore_list.iter() {
+            if let Some(semaphore) = semaphore_option {
+                semaphore_list.push(Some(semaphore.clone()));
+            } else {
+                semaphore_list.push(None);
+            }
+        }
+        let mut condvar_list: Vec<Option<Arc<Condvar>>> = Vec::new();
+        for condvar_option in process_inner.condvar_list.iter() {
+            if let Some(condvar) = condvar_option {
+                condvar_list.push(Some(condvar.clone()));
+            } else {
+                condvar_list.push(None);
+            }
+        }
         let inner = ProcessControlBlockInner {
             parent: None,
             children: Vec::new(),
@@ -190,6 +222,9 @@ impl ProcessControlBlock {
             exit_code: process_inner.exit_code.clone(),
             is_zombie: process_inner.is_zombie,
             fd_table: new_fd_table,
+            mutex_list: mutex_list,
+            semaphore_list: semaphore_list,
+            condvar_list: condvar_list,
             elf_data: process_inner.elf_data,
         };
         let new_process = ProcessControlBlock { pid_stub, inner: Arc::new(Mutex::new(inner)) };
@@ -226,6 +261,13 @@ impl ProcessControlBlock {
                 task.reset(entry_point, &process_inner.memory_set.page_table);
             }
         }
+    }
+}
+
+impl Drop for ProcessControlBlock {
+    fn drop(&mut self) {
+        let pid = self.get_pid();
+        // debug!("drop process pid {}", pid);
     }
 }
 
@@ -267,6 +309,9 @@ lazy_static! {
             exit_code: None,
             is_zombie: false,
             fd_table: vec![],
+            mutex_list: Vec::new(),
+            semaphore_list: Vec::new(),
+            condvar_list: Vec::new(),
             elf_data: None,
         };
 

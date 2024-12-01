@@ -5,6 +5,8 @@ use crate::arch::x86::pic;
 use crate::arch::x86::outb;
 use crate::schedule::suspend_current_and_run_next;
 use crate::drivers::keyboard::handle_keyboard_intr;
+use crate::timer::check_timer;
+use crate::timer::update_time;
 
 /// 主片的控制端口
 const PIC_M_CTRL: u16 = 0x20;
@@ -18,25 +20,25 @@ const PIC_S_DATA: u16 = 0xA1;
 pub fn init() {
     // 初始化主片
     assert_eq!(pic::ICW1::new(true, false, false).0, 0x11u8);
-    outb(PIC_M_CTRL, pic::ICW1::new(true, false, false).0);  // ICW1: 边缘触发，级联 8259，需要ICW4
-    outb(PIC_M_DATA, pic::ICW2(0x20).0);  // ICW2: 起始中断向量为 0x20
+    outb(pic::ICW1::new(true, false, false).0, PIC_M_CTRL);  // ICW1: 边缘触发，级联 8259，需要ICW4
+    outb(pic::ICW2(0x20).0, PIC_M_DATA);  // ICW2: 起始中断向量为 0x20
     assert_eq!(pic::ICW3::master(2).0, 0x04u8);
-    outb(PIC_M_DATA, pic::ICW3::master(2).0);  // ICW3: IR2 接从片
+    outb(pic::ICW3::master(2).0, PIC_M_DATA);  // ICW3: IR2 接从片
     assert_eq!(pic::ICW4::uPM.bits(), 0x01u8);
-    outb(PIC_M_DATA, pic::ICW4::uPM.bits());  // ICW4: 8086 模式，正常 EOI
+    outb(pic::ICW4::uPM.bits(), PIC_M_DATA);  // ICW4: 8086 模式，正常 EOI
 
     // 初始化从片
     assert_eq!(pic::ICW1::new(true, false, false).0, 0x11u8);
-    outb(PIC_S_CTRL, pic::ICW1::new(true, false, false).0);  // ICW1: ICW1: 边缘触发，级联 8259，需要ICW4
-    outb(PIC_S_DATA, pic::ICW2(0x28).0);  // ICW2: 起始中断向量为 0x28
+    outb(pic::ICW1::new(true, false, false).0, PIC_S_CTRL);  // ICW1: ICW1: 边缘触发，级联 8259，需要ICW4
+    outb(pic::ICW2(0x28).0, PIC_S_DATA);  // ICW2: 起始中断向量为 0x28
     assert_eq!(pic::ICW3::slaver(2).0, 0x02u8);
-    outb(PIC_S_DATA, pic::ICW3::slaver(2).0);  // ICW3: 设置从片连接到主片的IR2引脚
+    outb(pic::ICW3::slaver(2).0, PIC_S_DATA);  // ICW3: 设置从片连接到主片的IR2引脚
     assert_eq!(pic::ICW4::uPM.bits(), 0x01u8);
-    outb(PIC_S_DATA, pic::ICW4::uPM.bits());  // ICW4: 8086 模式，正常 EOI
+    outb(pic::ICW4::uPM.bits(), PIC_S_DATA);  // ICW4: 8086 模式，正常 EOI
 
     // 只打开时钟中断
-    outb(PIC_M_DATA, 0xfd);
-    outb(PIC_S_DATA, 0xff);
+    outb(0xfc, PIC_M_DATA);
+    outb(0xff, PIC_S_DATA);
 
     register_pic_intr();
 }
@@ -63,25 +65,28 @@ fn register_pic_intr() {
 }
 
 fn time_intr_handler(intr_context: &mut IntrContext) {
-    assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
-    outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+    update_time();
+    check_timer();
 
+    assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
+    outb(pic::OCW2::new(false, false, true, 0).0, PIC_M_CTRL);
+    
     suspend_current_and_run_next();
 }
 
 fn keyboard_intr_handler(intr_context: &mut IntrContext) {
     handle_keyboard_intr();
     assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
-    outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+    outb(pic::OCW2::new(false, false, true, 0).0, PIC_M_CTRL);
 }
 
 fn pic_master_intr_handler(intr_context: &mut IntrContext) {
     assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
-    outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+    outb(pic::OCW2::new(false, false, true, 0).0, PIC_M_CTRL);
 }
 
 fn pic_slaver_intr_handler(intr_context: &mut IntrContext) {
     assert_eq!(pic::OCW2::new(false, false, true, 0).0, 0x20);
-    outb(PIC_S_CTRL, pic::OCW2::new(false, false, true, 0).0);
-    outb(PIC_M_CTRL, pic::OCW2::new(false, false, true, 0).0);
+    outb(pic::OCW2::new(false, false, true, 0).0, PIC_S_CTRL);
+    outb(pic::OCW2::new(false, false, true, 0).0, PIC_M_CTRL);
 }

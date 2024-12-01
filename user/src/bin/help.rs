@@ -10,8 +10,15 @@ static APPS: &[&str] = &[
     "forktest_simple",
     "forktest",
     "forktest2",
+    "forktree",
     "threads",
-    "threads_arg"
+    "threads_arg",
+    "adder_mutex_spin",
+    "adder_mutex_blocking",
+    "mpsc_sem",
+    "condsync_sem",
+    "condsync_condvar",
+    "barrier_condvar",
 ];
 
 #[no_mangle]

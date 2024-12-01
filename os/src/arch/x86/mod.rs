@@ -18,26 +18,47 @@ pub use gate_descriptor::*;
 pub use port::*;
 
 
-pub fn outb(port: u16, value: u8) {
+pub fn outb(value: u8, port: u16) {
     unsafe {
         asm!(
-            "mov edx, {0}",
             "out dx, al",
-            in(reg) port as u32,
-            in("eax") value as u32,
-            out("edx") _,
+            in("edx") port as u32,
+            in("eax") value as u32
         );
     }
 }
 
-pub fn outw(port: u16, value: u16) {
+pub fn outw(value: u16, port: u16) {
     unsafe {
         asm!(
-            "mov edx, {0}",
             "out dx, ax",
-            in(reg) port as u32,
-            in("eax") value as u32,
-            out("edx") _,
+            in("edx") port as u32,
+            in("eax") value as u32
         );
     }
+}
+
+pub fn inb(port: u16) -> u8 {
+    let mut value: u32;
+    unsafe {
+        asm!(
+            "in al, dx",
+            in("edx") port as u32,
+            out("eax") value
+        );
+    }
+    (value & 0xff).try_into().unwrap()
+}
+
+
+pub fn inw(port: u16) -> u16 {
+    let mut value: u32;
+    unsafe {
+        asm!(
+            "in ax, dx",
+            in("edx") port as u32,
+            out("eax") value
+        );
+    }
+    (value & 0xffff).try_into().unwrap()
 }

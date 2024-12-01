@@ -9,12 +9,6 @@ pub fn sys_exit(exit_code: isize) -> ! {
     exit_current_and_run_next(exit_code)
 }
 
-
-pub fn sys_sleep() -> isize {
-    0
-}
-
-
 pub fn sys_yield() -> isize {
     suspend_current_and_run_next();
     0
